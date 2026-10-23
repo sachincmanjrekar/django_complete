@@ -681,9 +681,60 @@
       so page CSS can override global CSS.
     - {% load static %} is needed in base.html too - each template loads
       its own tags.
-    - Also removed the css_files block from index.html, so challenges.css
-      (list-style: none) is no longer loaded there -> bullet points are back;
-      {% load static %} in index.html is now unused.
+    - Also removed the css_files block from index.html for a while, so
+      challenges.css wasn't loaded there (bullet points came back) - added
+      back in the next step.
+
+## Styling every page with the course CSS files
+
+    - Copied the course CSS files (link in Helpful resources) into:
+        static/styles.css                               -> global (font, dark background)
+        challenges/static/challenges/challenges.css     -> index page (month list card)
+        challenges/static/challenges/challenge.css      -> single challenge page
+        challenges/static/challenges/includes/header.css -> the header include
+    - Each page links ONLY the CSS it needs, inside {% block css_files %}:
+        index.html:
+            {% extends "base.html" %}
+            {% load static %}
+
+            {% block css_files %}
+                <link rel="stylesheet" href="{% static 'challenges/challenges.css' %}">
+                <link rel="stylesheet" href="{% static 'challenges/includes/header.css' %}">
+            {% endblock %}
+        challenge.html:
+            {% block css_files %}
+                <link rel="stylesheet" href="{% static 'challenges/challenge.css' %}">
+                <link rel="stylesheet" href="{% static 'challenges/includes/header.css' %}">
+            {% endblock %}
+    - header.html is an {% include %} piece inside <body>, so it can't add a
+      <link> to <head> -> every page that includes it also links header.css.
+    - Final <head> of /challenges/january:
+        /static/styles.css                          (from base.html, all pages)
+        /static/challenges/challenge.css            (from css_files block)
+        /static/challenges/includes/header.css      (from css_files block)
+    - styles.css sets a dark background (#1a1a1a), so plain <p> text (black)
+      became unreadable -> used the .fallback class from challenge.css
+      (centered, white) on the paragraphs:
+        {% if text %}
+            <p class="fallback">{{ text }}</p>
+        {% else %}
+            <p class="fallback">No challenge found for {{ month_name|title }}.</p>
+        {% endif %}
+
+## Building static URLs dynamically (add filter)
+
+    - (3rd "More on DTL" addition - seen in action later in the course.)
+    - Case: part of the static path (e.g. the file name) is in a template variable,
+      the_file = "photo.jpg".
+    - Python-style + does NOT work in DTL (error):
+        {% static "my_path/to/" + the_file %}
+    - Use the add filter to join the strings first:
+        {% static "my_path/to/"|add:the_file %}
+        -> /static/my_path/to/photo.jpg
+    - |add: joins two strings (or adds two numbers); the filter runs first,
+      then {% static %} gets the finished path.
+
+## Section 4 complete (Templates and static files)
 
 ## Helpful resources (Django docs: starting a project)
 
@@ -707,5 +758,11 @@
         https://github.com/academind/django-practical-guide-course-code/tree/urls-views-01-adding-a-first-url-and-view
     - Section 3 module slides:
         https://github.com/academind/django-practical-guide-course-code/tree/urls-views-zz-extra-files
+    - Section 4 code snapshots = branches starting with "templates-...", e.g.:
+        https://github.com/academind/django-practical-guide-course-code/tree/templates-01-adding-and-registering-templates/
+    - Section 4 module slides:
+        https://github.com/academind/django-practical-guide-course-code/tree/templates-zz-extra-files/slides
+    - Section 4 (templates) ready-made CSS files from the course:
+        https://github.com/academind/django-practical-guide-course-code/tree/templates-zz-extra-files/css-files
     - Built-in template tags and filters (title, upper, length, default, for, if...):
         https://docs.djangoproject.com/en/6.0/ref/templates/builtins/

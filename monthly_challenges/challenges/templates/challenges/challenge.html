@@ -1,13 +1,20 @@
 
 {% extends "base.html" %}
+{% load static %}
+
+{% block css_files %}
+    <link rel="stylesheet" href="{% static 'challenges/challenge.css' %}">
+    <link rel="stylesheet" href="{% static 'challenges/includes/header.css' %}">
+{% endblock %}
+
 {% block title %}All extended individual challenges{% endblock %}
 {% block content %}
     {% include "challenges/includes/header.html" %}
     <h1>This is the monthly challenge</h1>
     <h2>{{ month_name|title }}</h2>
     {% if text %}
-        <p>{{ text }}</p>
+        <p class="fallback">{{ text }}</p>
     {% else %}
-        <p>No challenge found for {{ month_name|title }}.</p>
+        <p class="fallback">No challenge found for {{ month_name|title }}.</p>
     {% endif %}
 {% endblock %}
