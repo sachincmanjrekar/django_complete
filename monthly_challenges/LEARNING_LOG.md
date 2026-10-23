@@ -204,6 +204,36 @@
       (args fills the <month> part; Django adds the "challenges/" prefix from include()).
     - Now the prefix can change in one place and every reverse() follows it.
 
+## Returning HTML from a view (h1 + p)
+
+    - HttpResponse can send HTML, not only plain text:
+        def monthly_challenge(request, month):
+            challenge_text = monthly_challenges.get(month)
+            if challenge_text:
+                response_data = f'<h1>{month.capitalize()}</h1><p>{challenge_text}</p>'
+                return HttpResponse(response_data)
+    - month.capitalize() -> "january" becomes "January".
+    - /challenges/january -> big heading "January" + challenge text below it.
+
+## Index page: list of month links (built with reverse())
+
+    - challenges/urls.py -> empty path "" = /challenges/ itself:
+        path("", views.index, name="index"),
+    - challenges/views.py:
+        def index(request):
+            list_items = ""
+            months = list(monthly_challenges.keys())
+            for month in months:
+                capitalized_month = month.capitalize()
+                month_path = reverse("month-challenge", args=[month])
+                list_items += f'<li><a href="{month_path}">{capitalized_month}</a></li>'
+            return HttpResponse(f"<ul>{list_items}</ul>")
+    - The loop builds one <li><a href="/challenges/january">January</a></li> per month,
+      then wraps them all in <ul> ... </ul>.
+    - reverse() makes each link, so no "/challenges/" is hard-coded.
+    - Open http://127.0.0.1:8000/challenges/ -> bullet list of 12 clickable months.
+    - Building HTML in Python strings gets messy fast -> templates solve this later.
+
 ## Helpful resources (Django docs: starting a project)
 
     - Tutorial part 1 (startproject, project layout, runserver, first app):
