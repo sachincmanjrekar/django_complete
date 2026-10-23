@@ -249,6 +249,24 @@
         <h1>This is the monthly challenge</h1>
         <h2> Go for walk</h2>
 
+## Template namespacing - why "challenges/challenge.html" (best practice)
+
+    - Django does NOT look for templates per app. All templates/ folders
+      (DIRS + every installed app) act like ONE shared space, searched in
+      order; the FIRST match wins.
+    - Without namespacing, same file names clash:
+        challenges/templates/index.html
+        blog/templates/index.html
+      render_to_string("index.html") -> picks whichever app is first in
+      INSTALLED_APPS, so one app can silently show the other app's page.
+    - With namespacing (extra folder named after the app):
+        challenges/templates/challenges/index.html  ->  "challenges/index.html"
+        blog/templates/blog/index.html              ->  "blog/index.html"
+      The app name is part of the template name, so no clash is possible.
+    - Bonus: "challenges/challenge.html" in a view shows which app it belongs to.
+    - challenges/templates/challenges/ looks doubled, but it's the standard layout
+      (Django's own tutorial uses polls/templates/polls/).
+
 ## render_to_string (template -> HTML string)
 
     - challenges/views.py:
@@ -309,6 +327,31 @@
         registering the app is also needed later for models, migrations, admin
     - DIRS is still useful for project-level templates that belong to no app
       (e.g. a shared base.html in a top-level templates/ folder).
+
+## render() shortcut (instead of render_to_string + HttpResponse)
+
+    - challenges/views.py:
+        from django.shortcuts import render
+
+        def monthly_challenge(request, month):
+            try:
+                challenge_text = monthly_challenges.get(month)
+                if challenge_text:
+                    return render(request, "challenges/challenge.html")
+                else:
+                    return HttpResponseNotFound(f"No challenge found for {month}")
+            except:
+                return HttpResponseNotFound(f"No challenge found for {month}")
+    - Before (2 steps):
+        response_data = render_to_string("challenges/challenge.html")
+        return HttpResponse(response_data)
+    - After (1 step):
+        return render(request, "challenges/challenge.html")
+    - render() = render_to_string() + HttpResponse() in one call.
+      It also takes the request (needed later, e.g. for {% csrf_token %} in forms).
+    - render was already imported at the top by startapp
+      ("from django.shortcuts import render"); the render_to_string import was removed.
+    - The dict is checked again: unknown months (e.g. /challenges/hello) -> 404.
 
 ## Template variables ({{ }}) must match the context keys
 
