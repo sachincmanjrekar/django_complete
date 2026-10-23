@@ -383,6 +383,26 @@
       (writing .capitalize() would be an error).
     - The page now changes per month (before, every month showed "Go for walk").
 
+## Template filters ({{ value|filter }})
+
+    - A filter changes how a value is SHOWN in the template (the data itself
+      is not changed). Syntax: variable | filter name, no spaces needed.
+    - challenge.html, replaced the method call with a filter:
+        before: <h2>{{ month_name.capitalize }}</h2>
+        after:  <h2>{{ month_name|title }}</h2>
+      Both show "January"; filters are the Django-template way to do it.
+    - Some built-in filters:
+        {{ name|title }}        -> "hello world" -> "Hello World"
+        {{ name|upper }}        -> "HELLO WORLD"
+        {{ name|lower }}        -> "hello world"
+        {{ name|capfirst }}     -> "Hello world"  (first letter only)
+        {{ text|length }}       -> number of characters / items
+        {{ text|truncatewords:3 }} -> first 3 words + "..."
+        {{ value|default:"none" }} -> "none" if value is empty/False
+    - Filters can take an argument after ":" and can be chained:
+        {{ text|lower|truncatewords:3 }}
+    - Full list: https://docs.djangoproject.com/en/6.0/ref/templates/builtins/#built-in-filter-reference
+
 ## Helpful resources (Django docs: starting a project)
 
     - Tutorial part 1 (startproject, project layout, runserver, first app):
@@ -405,3 +425,5 @@
         https://github.com/academind/django-practical-guide-course-code/tree/urls-views-01-adding-a-first-url-and-view
     - Section 3 module slides:
         https://github.com/academind/django-practical-guide-course-code/tree/urls-views-zz-extra-files
+    - Built-in template tags and filters (title, upper, length, default, for, if...):
+        https://docs.djangoproject.com/en/6.0/ref/templates/builtins/
