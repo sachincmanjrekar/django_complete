@@ -234,6 +234,8 @@
     - Open http://127.0.0.1:8000/challenges/ -> bullet list of 12 clickable months.
     - Building HTML in Python strings gets messy fast -> templates solve this later.
 
+## Section 3 complete (URLs and views)
+
 ## Helpful resources (Django docs: starting a project)
 
     - Tutorial part 1 (startproject, project layout, runserver, first app):
@@ -250,3 +252,9 @@
         https://docs.python.org/3/tutorial/venv.html
     - URL dispatcher (path(), include(), path converters int/str/slug...):
         https://docs.djangoproject.com/en/6.0/topics/http/urls/
+    - Course code snapshot repository (branch per lesson):
+        https://github.com/academind/django-practical-guide-course-code
+    - Section 3 code snapshots = branches starting with "urls-views-...", e.g.:
+        https://github.com/academind/django-practical-guide-course-code/tree/urls-views-01-adding-a-first-url-and-view
+    - Section 3 module slides:
+        https://github.com/academind/django-practical-guide-course-code/tree/urls-views-zz-extra-files
