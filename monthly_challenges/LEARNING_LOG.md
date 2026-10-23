@@ -650,6 +650,41 @@
     - Static files are served by runserver only while DEBUG = True;
       in deployment the web server serves them (collectstatic, later).
 
+## Global static files (STATICFILES_DIRS)
+
+    - CSS for the WHOLE site (not one app) -> project-level folder:
+        monthly_challenges/static/styles.css
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap');
+
+        html {
+            font-family: "Space Grotesk", sans-serif;
+        }
+
+        body {
+            margin: 0;
+        }
+    - Apps' static/ folders are found automatically; a project-level folder is NOT,
+      so it is added in settings.py:
+        STATIC_URL = 'static/'
+        STATICFILES_DIRS = [
+            BASE_DIR / "static"
+        ]
+      (Same idea as DIRS for project-level templates.)
+    - base.html loads it for EVERY page, before the page-specific block:
+        {% load static %}
+        <!DOCTYPE html>
+        ...
+            <link rel="stylesheet" href="{% static 'styles.css' %}">
+            {% block css_files %}
+            {% endblock %}
+    - Order matters: global styles.css first, then each page's css_files,
+      so page CSS can override global CSS.
+    - {% load static %} is needed in base.html too - each template loads
+      its own tags.
+    - Also removed the css_files block from index.html, so challenges.css
+      (list-style: none) is no longer loaded there -> bullet points are back;
+      {% load static %} in index.html is now unused.
+
 ## Helpful resources (Django docs: starting a project)
 
     - Tutorial part 1 (startproject, project layout, runserver, first app):
