@@ -165,6 +165,29 @@
         every view in views.py can use it (e.g. monthly_challenge_by_number)
         the dict is built once when the file loads, not on every request
 
+## Redirect (HttpResponseRedirect): /challenges/1 -> /challenges/january
+
+    - challenges/views.py:
+        from django.http import HttpResponse, HttpResponseNotFound, HttpResponseRedirect
+
+        def monthly_challenge_by_number(request, month):
+            months = list(monthly_challenges.keys())
+            if month > len(months):
+                return HttpResponseNotFound("Invalid month")
+            else:
+                month = months[month - 1]
+                return HttpResponseRedirect(f"/challenges/{month}")
+    - list(monthly_challenges.keys()) -> ["january", "february", ..., "december"]
+    - month - 1 because list index starts at 0 (month 1 -> months[0] -> "january").
+    - Open http://127.0.0.1:8000/challenges/1
+        -> browser is sent to /challenges/january -> January challenge.
+    - /challenges/13 -> 13 > 12 -> 404 "Invalid month".
+    - A redirect means TWO requests:
+        1) /challenges/1        -> server answers 302 + Location: /challenges/january
+        2) /challenges/january  -> server answers 200 + the challenge text
+    - Watch out: /challenges/0 -> months[-1] = "december" (negative index = last item),
+      so 0 is not caught by month > len(months).
+
 ## Helpful resources (Django docs: starting a project)
 
     - Tutorial part 1 (startproject, project layout, runserver, first app):
