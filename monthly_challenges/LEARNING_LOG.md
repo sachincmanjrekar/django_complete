@@ -590,6 +590,34 @@
     - Better: catch only the expected error, so other bugs aren't hidden:
         except KeyError:
 
+## raise Http404 (Django's built-in 404) and DEBUG
+
+    - challenges/views.py:
+        from django.http import Http404
+
+        def monthly_challenge(request, month):
+            try:
+                challenge_text = monthly_challenges[month]
+                return render(request, "challenges/challenge.html", {...})
+            except:
+                raise Http404()
+    - raise (not return): Http404 is an exception; Django catches it and
+      builds the 404 response itself.
+    - Which page is shown depends on DEBUG in settings.py:
+        DEBUG = True  (development, now):
+            Django's yellow debug "Page not found (404)" page with details
+            (URL patterns tried, etc.) - my 404.html is NOT used.
+        DEBUG = False (real deployment):
+            Django automatically renders a template named 404.html
+            (found in templates/ via DIRS) -> my custom page shows up.
+    - So 404.html only needs the exact name "404.html" in a templates folder;
+      no view code has to load it (render_to_string version not needed).
+    - DEBUG = False also needs ALLOWED_HOSTS set, otherwise runserver fails:
+        CommandError: You must set settings.ALLOWED_HOSTS if DEBUG is False.
+      To test locally: ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
+    - Never deploy with DEBUG = True: the debug page shows code, settings and
+      URL lists to anyone.
+
 ## Helpful resources (Django docs: starting a project)
 
     - Tutorial part 1 (startproject, project layout, runserver, first app):
