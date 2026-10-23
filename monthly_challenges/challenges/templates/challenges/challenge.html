@@ -2,6 +2,7 @@
 {% extends "base.html" %}
 {% block title %}All extended individual challenges{% endblock %}
 {% block content %}
+    {% include "challenges/includes/header.html" %}
     <h1>This is the monthly challenge</h1>
     <h2>{{ month_name|title }}</h2>
     {% if text %}

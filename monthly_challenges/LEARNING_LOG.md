@@ -515,6 +515,28 @@
     - This is the "DIRS is still useful for project-level templates" case
       noted earlier.
 
+## {% include %} tag (reusable template pieces)
+
+    - A small HTML snippet used in several pages -> own file, pulled in with include.
+    - challenges/templates/challenges/includes/header.html (not a full page,
+      just the piece):
+        <header>
+            <nav>
+                <a href="{% url 'index' %}">All challenges</a>
+            </nav>
+        </header>
+    - Used in BOTH index.html and challenge.html, inside {% block content %}:
+        {% include "challenges/includes/header.html" %}
+    - {% url 'index' %} -> name="index" in challenges/urls.py -> /challenges/
+      (a link back to the list from every page).
+    - includes/ subfolder = just a convention to keep snippets apart from pages.
+    - The included file sees the same variables as the page that includes it
+      (e.g. month_name). Extra ones can be passed:
+        {% include "challenges/includes/header.html" with active_page="index" %}
+    - extends vs include:
+        {% extends %}  -> my page fits INTO a parent layout (one per template, first tag)
+        {% include %}  -> a piece is put INTO my page (as many as needed, anywhere)
+
 ## Helpful resources (Django docs: starting a project)
 
     - Tutorial part 1 (startproject, project layout, runserver, first app):
