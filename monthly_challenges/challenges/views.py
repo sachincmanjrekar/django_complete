@@ -46,7 +46,9 @@ def monthly_challenge(request, month):
     try:
         challenge_text = monthly_challenges.get(month)
         if challenge_text:
-            return render(request, "challenges/challenge.html")
+            return render(request, "challenges/challenge.html", {
+                "text": challenge_text,
+                "month_name": month,})
         else:
             return HttpResponseNotFound(f"No challenge found for {month}")
     except:

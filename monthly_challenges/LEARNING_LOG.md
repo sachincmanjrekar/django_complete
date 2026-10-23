@@ -366,6 +366,23 @@
     - Django renders an unknown variable as an EMPTY string - no error.
     - Fix: use {{ month_name }} in the template, or rename the key to "month".
 
+## Passing context with render() and showing it in the template
+
+    - challenges/views.py -> 3rd argument of render() is the context dict:
+        return render(request, "challenges/challenge.html", {
+            "text": challenge_text,
+            "month_name": month,
+        })
+    - challenge.html uses the keys inside {{ }}:
+        <h1>This is the monthly challenge</h1>
+        <h2>{{ month_name.capitalize }}</h2>
+        <p>{{ text }}</p>
+    - /challenges/january -> h2 "January" + p "Eat no meat for the entire month!"
+    - {{ month_name.capitalize }} calls the Python string method
+      WITHOUT () - in templates, methods are called automatically
+      (writing .capitalize() would be an error).
+    - The page now changes per month (before, every month showed "Go for walk").
+
 ## Helpful resources (Django docs: starting a project)
 
     - Tutorial part 1 (startproject, project layout, runserver, first app):
