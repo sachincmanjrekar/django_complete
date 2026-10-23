@@ -188,6 +188,22 @@
     - Watch out: /challenges/0 -> months[-1] = "december" (negative index = last item),
       so 0 is not caught by month > len(months).
 
+## reverse() and named URLs (no hard-coded paths)
+
+    - Problem: HttpResponseRedirect(f"/challenges/{month}") hard-codes "/challenges/".
+      If "challenges/" changes in monthly_challenges/urls.py (e.g. to "challenge/"),
+      the redirect breaks.
+    - Step 1: give the URL a name in challenges/urls.py:
+        path("<str:month>", views.monthly_challenge, name="month-challenge"),
+    - Step 2: build the URL from that name in challenges/views.py:
+        from django.urls import reverse
+
+        redirect_path = reverse("month-challenge", args=[month])
+        return HttpResponseRedirect(redirect_path)
+    - reverse("month-challenge", args=["january"]) -> "/challenges/january"
+      (args fills the <month> part; Django adds the "challenges/" prefix from include()).
+    - Now the prefix can change in one place and every reverse() follows it.
+
 ## Helpful resources (Django docs: starting a project)
 
     - Tutorial part 1 (startproject, project layout, runserver, first app):
