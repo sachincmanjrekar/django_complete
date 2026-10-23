@@ -21,6 +21,28 @@
       sessions...) need their tables; python manage.py migrate creates them.
     - Stop the server with Ctrl + C.
 
+## .gitignore (files git should not track)
+
+    - db.sqlite3 and __pycache__/ showed up as untracked files in git status.
+    - Don't delete them: Django/Python recreate them, and db.sqlite3 will hold my data.
+    - Instead, list them in django_complete/.gitignore so git ignores them:
+        db.sqlite3
+        __pycache__/
+        .gitignore
+    - git status no longer shows them, so they can't be pushed by mistake.
+
+## python manage.py startapp challenges
+
+    - Creates a new app named "challenges" (run inside the folder with manage.py).
+    - Makes a folder "challenges" containing:
+        __init__.py   -> marks the folder as a Python package
+        admin.py      -> register models to show in the admin site
+        apps.py       -> app configuration (ChallengesConfig)
+        migrations/   -> database change files for this app
+        models.py     -> database tables (models) for this app
+        tests.py      -> tests for this app
+        views.py      -> functions that handle requests and return responses
+
 ## Helpful resources (Django docs: starting a project)
 
     - Tutorial part 1 (startproject, project layout, runserver, first app):
