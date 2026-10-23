@@ -18,3 +18,5 @@
         https://docs.djangoproject.com/en/6.0/ref/django-admin/
     - Settings reference (everything that can go in settings.py):
         https://docs.djangoproject.com/en/6.0/ref/settings/
+    - PEP 8 (Python style guide: naming, indentation, line length, imports...):
+        https://peps.python.org/pep-0008/
