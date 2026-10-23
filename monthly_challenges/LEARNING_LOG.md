@@ -149,6 +149,22 @@
       /challenges/1 goes to monthly_challenge and gives 404 "No challenge found for 1".
     - Rule: put the more specific converter (int) before the general one (str).
 
+## Global dictionary (monthly_challenges)
+
+    - Moved the challenges dict out of monthly_challenge() to the top of
+      challenges/views.py and renamed it monthly_challenges:
+        monthly_challenges = {
+            "january": "Eat no meat for the entire month!",
+            ...
+            "december": None,
+        }
+
+        def monthly_challenge(request, month):
+            challenge_text = monthly_challenges.get(month)
+    - Why global (module level):
+        every view in views.py can use it (e.g. monthly_challenge_by_number)
+        the dict is built once when the file loads, not on every request
+
 ## Helpful resources (Django docs: starting a project)
 
     - Tutorial part 1 (startproject, project layout, runserver, first app):
