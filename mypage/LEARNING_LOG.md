@@ -10,6 +10,17 @@
             asgi.py      -> entry point for async web servers
             wsgi.py      -> entry point for regular web servers
 
+## python manage.py runserver
+
+    - Starts the development server at http://127.0.0.1:8000/
+    - Shows the Django welcome page (rocket) because no URLs are added yet.
+    - Running it created two new things:
+        db.sqlite3   -> empty SQLite database file (no tables yet)
+        __pycache__/ -> compiled Python files, made automatically
+    - Warning "You have 18 unapplied migration(s)" -> built-in apps (admin, auth,
+      sessions...) need their tables; python manage.py migrate creates them.
+    - Stop the server with Ctrl + C.
+
 ## Helpful resources (Django docs: starting a project)
 
     - Tutorial part 1 (startproject, project layout, runserver, first app):
