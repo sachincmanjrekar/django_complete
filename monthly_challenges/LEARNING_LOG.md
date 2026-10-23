@@ -236,6 +236,70 @@
 
 ## Section 3 complete (URLs and views)
 
+## Section 4: Templates
+
+## First template (challenges/templates/challenges/challenge.html)
+
+    - HTML goes in a separate .html file instead of Python strings.
+    - Folder: challenges/templates/challenges/challenge.html
+      (the extra "challenges" folder inside templates = namespacing, so the
+       template is loaded as "challenges/challenge.html" and won't clash
+       with same-named templates from other apps).
+    - challenge.html is a normal HTML page:
+        <h1>This is the monthly challenge</h1>
+        <h2> Go for walk</h2>
+
+## render_to_string (template -> HTML string)
+
+    - challenges/views.py:
+        from django.template.loader import render_to_string
+
+        def monthly_challenge(request, month):
+            try:
+                response_data = render_to_string("challenges/challenge.html")
+                return HttpResponse(response_data)
+            except:
+                return HttpResponseNotFound(f"No challenge found for {month}")
+    - render_to_string() finds the template, turns it into an HTML string,
+      and HttpResponse sends it to the browser.
+    - Right now every month shows the same page (no data passed in yet);
+      even /challenges/hello shows it, because the dict is not checked.
+    - Bare except: hides every error (e.g. a missing template also shows
+      "No challenge found"), so real problems are harder to see.
+
+## Error: TemplateDoesNotExist (how Django finds templates)
+
+    - Got: TemplateDoesNotExist: challenges/challenge.html
+    - settings.py -> TEMPLATES:
+        'DIRS': []        -> extra folders to search (none at first)
+        'APP_DIRS': True  -> search the templates/ folder of every app
+                             listed in INSTALLED_APPS
+    - "challenges" was NOT in INSTALLED_APPS, so its templates/ folder was skipped.
+      (URLs/views still worked because include("challenges.urls") imports
+       the code directly; templates are found a different way.)
+    - Two fixes:
+        1) Add the folder to DIRS (what I did):
+             'DIRS': [BASE_DIR / "challenges" / "templates"],
+        2) Register the app (the usual way):
+             INSTALLED_APPS = [
+                 'challenges',
+                 ...
+             ]
+    - BASE_DIR = the folder with manage.py; "/" joins path parts (pathlib).
+
+## Template variables ({{ }}) must match the context keys
+
+    - View passes data as a dict (the "context"):
+        render_to_string("challenges/challenge.html", {
+            "text": challenge_text,
+            "month_name": month,
+        })
+    - Template showed nothing for:
+        This is the monthly challenge for {{ month }}
+      because the key is "month_name", not "month".
+    - Django renders an unknown variable as an EMPTY string - no error.
+    - Fix: use {{ month_name }} in the template, or rename the key to "month".
+
 ## Helpful resources (Django docs: starting a project)
 
     - Tutorial part 1 (startproject, project layout, runserver, first app):
