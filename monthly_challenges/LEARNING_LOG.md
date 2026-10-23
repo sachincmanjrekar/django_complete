@@ -438,6 +438,83 @@
     - If the "challenges/" prefix changes in monthly_challenges/urls.py,
       every {% url %} link updates automatically.
 
+## {% if %} tag (conditions in templates)
+
+    - challenge.html:
+        <h2>{{ month_name|title }}</h2>
+        {% if text %}
+            <p>{{ text }}</p>
+        {% else %}
+            <p>No challenge found for {{ month_name|title }}.</p>
+        {% endif %}
+    - Like Python if/else, but MUST be closed with {% endif %}.
+      ({% elif ... %} also exists.)
+    - {% if text %} is False for None, "", 0, empty list - same as Python.
+    - challenges/views.py -> the view no longer checks; it always renders
+      and lets the template decide:
+        challenge_text = monthly_challenges.get(month)
+        return render(request, "challenges/challenge.html", {
+            "text": challenge_text,
+            "month_name": month,
+        })
+    - /challenges/january  -> "Eat no meat for the entire month!"
+      /challenges/december -> text is None -> "No challenge found for December."
+    - Note: unknown months (e.g. /challenges/hello) now also get this page with
+      status 200 instead of a 404 - the page says "not found" but the HTTP
+      status says OK.
+
+## Template inheritance ({% extends %} and {% block %})
+
+    - Problem: challenge.html and index.html both repeated the same
+      <!DOCTYPE html>, <head>, <meta>, <title>, <body> ... boilerplate.
+    - Solution: write it ONCE in a parent template, children fill in the gaps.
+    - Parent: monthly_challenges/templates/base.html (project level, no app):
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>{% block title %}My Hcallenges Challenge{% endblock %}</title>
+        </head>
+        <body>
+        {% block content %}
+        {% endblock %}
+        </body>
+        </html>
+    - {% block name %} ... {% endblock %} = a named gap a child can replace.
+      Text inside the parent's block = DEFAULT, used if the child doesn't override it.
+    - Child: challenges/templates/challenges/index.html:
+        {% extends "base.html" %}
+        {% block title %}All extended challenges{% endblock %}
+        {% block content %}
+            <ul>{% for month in months %} ... {% endfor %}</ul>
+        {% endblock %}
+    - Child: challenge.html:
+        {% extends "base.html" %}
+        {% block title %}All extended individual challenges{% endblock %}
+        {% block content %}
+            <h1>This is the monthly challenge</h1>
+            ...
+        {% endblock %}
+    - Rules:
+        {% extends %} must be the FIRST tag in the child template
+        only content inside {% block %} tags is used from the child
+        block names must match the parent's (title, content)
+    - Change base.html once -> every page that extends it changes.
+
+## Project-level templates folder (DIRS)
+
+    - base.html belongs to no single app -> lives in monthly_challenges/templates/
+      (next to manage.py), not inside challenges/.
+    - APP_DIRS only searches apps, so the folder is added to DIRS in settings.py:
+        'DIRS': [
+            # BASE_DIR / "challenges" / "templates"
+            BASE_DIR / "templates"
+        ],
+    - {% extends "base.html" %} -> Django finds it in BASE_DIR / "templates".
+    - This is the "DIRS is still useful for project-level templates" case
+      noted earlier.
+
 ## Helpful resources (Django docs: starting a project)
 
     - Tutorial part 1 (startproject, project layout, runserver, first app):
