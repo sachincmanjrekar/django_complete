@@ -278,7 +278,7 @@
       (URLs/views still worked because include("challenges.urls") imports
        the code directly; templates are found a different way.)
     - Two fixes:
-        1) Add the folder to DIRS (what I did):
+        1) Add the folder to DIRS (first try):
              'DIRS': [BASE_DIR / "challenges" / "templates"],
         2) Register the app (the usual way):
              INSTALLED_APPS = [
@@ -286,6 +286,29 @@
                  ...
              ]
     - BASE_DIR = the folder with manage.py; "/" joins path parts (pathlib).
+
+## Another way: register the app in INSTALLED_APPS (APP_DIRS)
+
+    - Switched from fix 1 to fix 2 in monthly_challenges/settings.py:
+        INSTALLED_APPS = [
+            ...
+            'django.contrib.staticfiles',
+            "challenges",
+        ]
+
+        TEMPLATES = [
+            {
+                'DIRS': [
+                    # BASE_DIR / "challenges" / "templates"
+                ],
+                'APP_DIRS': True,
+                ...
+    - Now APP_DIRS finds challenges/templates/ automatically, so DIRS isn't needed.
+    - Why this way is better:
+        every new app's templates/ folder is found without editing DIRS
+        registering the app is also needed later for models, migrations, admin
+    - DIRS is still useful for project-level templates that belong to no app
+      (e.g. a shared base.html in a top-level templates/ folder).
 
 ## Template variables ({{ }}) must match the context keys
 
