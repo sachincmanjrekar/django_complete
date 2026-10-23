@@ -403,6 +403,41 @@
         {{ text|lower|truncatewords:3 }}
     - Full list: https://docs.djangoproject.com/en/6.0/ref/templates/builtins/#built-in-filter-reference
 
+## Index page with a template: {% for %} tag
+
+    - challenges/views.py -> index() no longer builds HTML strings:
+        def index(request):
+            months = list(monthly_challenges.keys())
+            return render(request, "challenges/index.html", {"months": months})
+    - challenges/templates/challenges/index.html:
+        <ul>{% for month in months %}
+            <li>
+                <a href="{% url 'month-challenge' month %}">{{ month|title }}</a>
+            </li>{% endfor %}
+        </ul>
+    - {{ }}  -> OUTPUT a value          ({{ month|title }})
+      {% %}  -> a TAG = logic/command   ({% for %}, {% url %}, {% if %} ...)
+    - {% for month in months %} ... {% endfor %} repeats the HTML once per month.
+      Like a Python for loop, but it MUST be closed with {% endfor %}.
+    - Before (Python string building in index()):
+        list_items += f'<li><a href="{month_path}">{capitalized_month}</a></li>'
+        return HttpResponse(f"<ul>{list_items}</ul>")
+      After: the view only passes data; the template does the HTML.
+    - Leftovers in index() that are no longer used: list_items = "" and
+      the reverse import (still used by monthly_challenge_by_number though).
+
+## {% url %} tag = reverse() inside templates
+
+    - In the view (Python):
+        reverse("month-challenge", args=[month])        -> "/challenges/january"
+    - In the template:
+        {% url 'month-challenge' month %}               -> "/challenges/january"
+    - Same idea: build the URL from the route NAME, never hard-code "/challenges/".
+    - 'month-challenge' = name="month-challenge" in challenges/urls.py;
+      month = the value for <str:month> (more values -> more args, space-separated).
+    - If the "challenges/" prefix changes in monthly_challenges/urls.py,
+      every {% url %} link updates automatically.
+
 ## Helpful resources (Django docs: starting a project)
 
     - Tutorial part 1 (startproject, project layout, runserver, first app):
