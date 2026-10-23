@@ -43,6 +43,23 @@
         tests.py      -> tests for this app
         views.py      -> functions that handle requests and return responses
 
+## Virtual environment (optional)
+
+    - Recommended for any Python project (Django or not).
+    - Each project gets its own environment, so installed modules are
+      project-specific instead of global.
+    - Docs: https://docs.python.org/3/tutorial/venv.html
+
+## Pylance in VS Code
+
+    - VS Code extension that gives better code checks and code completion.
+    - Enable it for the project in .vscode/settings.json:
+        {
+            "python.languageServer": "Pylance",
+        }
+
+## Section 2 complete
+
 ## Helpful resources (Django docs: starting a project)
 
     - Tutorial part 1 (startproject, project layout, runserver, first app):
@@ -53,3 +70,7 @@
         https://docs.djangoproject.com/en/6.0/ref/settings/
     - PEP 8 (Python style guide: naming, indentation, line length, imports...):
         https://peps.python.org/pep-0008/
+    - Course module slides and extra files (Academind Django practical guide):
+        https://github.com/academind/django-practical-guide-course-code/tree/setup-zz-extra-files
+    - Python virtual environments (venv):
+        https://docs.python.org/3/tutorial/venv.html
