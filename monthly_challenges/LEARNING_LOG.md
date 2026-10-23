@@ -555,6 +555,41 @@
         attribute/method a.b   (called if it's a method)
         list index       a[b]  (e.g. {{ months.0 }} -> "january")
 
+## Custom 404 page (404.html + HttpResponseNotFound)
+
+    - monthly_challenges/templates/404.html (project level, extends base.html):
+        {% extends "base.html" %}
+        {% block title %}Page Not Found{% endblock %}
+        {% block content %}
+            <h1>Page Not Found</h1>
+            <p>The requested page could not be found.</p>
+        {% endblock %}
+    - challenges/views.py:
+        from django.template.loader import render_to_string
+
+        def monthly_challenge(request, month):
+            try:
+                challenge_text = monthly_challenges[month]
+                return render(request, "challenges/challenge.html", {
+                    "text": challenge_text,
+                    "month_name": month,
+                })
+            except:
+                rendered_string = render_to_string("404.html")
+                return HttpResponseNotFound(rendered_string)
+    - .get(month) -> returns None for an unknown key (no error)
+      [month]     -> raises KeyError for an unknown key -> goes to except
+      So the switch to [month] is what makes try/except work now.
+    - /challenges/hello   -> KeyError -> 404.html with status 404 (fixes the
+                             200-for-unknown-month issue from the if-tag entry)
+      /challenges/december -> key exists (value None) -> challenge.html,
+                             {% if text %} shows "No challenge found for December."
+    - render_to_string() gives just the HTML string, which goes into
+      HttpResponseNotFound to send status 404 (render() alone sends 200).
+      Same result in one line: render(request, "404.html", status=404)
+    - Better: catch only the expected error, so other bugs aren't hidden:
+        except KeyError:
+
 ## Helpful resources (Django docs: starting a project)
 
     - Tutorial part 1 (startproject, project layout, runserver, first app):
