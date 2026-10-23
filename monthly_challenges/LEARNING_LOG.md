@@ -111,6 +111,44 @@
     - /challenges/january/ (with slash) -> 404 Page not found.
     - Common Django style is path("january/", ...) so the URL ends with a slash.
 
+## Dynamic URL segment (<month>)
+
+    - One route for all months instead of one path() per month:
+        path("<month>", views.monthly_challenge),
+    - <month> captures that part of the URL and passes it to the view
+      as a keyword argument with the same name:
+        def monthly_challenge(request, month):
+    - challenges dict + challenges.get(month):
+        found     -> HttpResponse(f"Monthly Challenge for {month}: {challenge_text}")
+        not found -> HttpResponseNotFound(f"No challenge found for {month}")  (404)
+    - "december": None -> if challenge_text: is False -> also 404.
+
+## Error: dynamic route pointing to the wrong view
+
+    - Wrote path("<month>", views.index) by mistake.
+    - Django calls index(request, month="february") but index() only takes request:
+        TypeError: index() got an unexpected keyword argument 'month'
+    - Fix: point the route to the view that accepts month -> views.monthly_challenge
+    - The view's parameter name must match the name inside < >.
+
+## Path converters (int, str) and why ORDER matters
+
+    - challenges/urls.py:
+        urlpatterns = [
+            path("<int:month>", views.monthly_challenge_by_number),
+            path("<str:month>", views.monthly_challenge),
+        ]
+    - <int:month> -> matches only digits, and month arrives as an int (1, not "1").
+    - <str:month> -> matches ANY text without "/" (also "1"); month arrives as a str.
+      (<month> with no converter = str by default.)
+    - Django checks urlpatterns top to bottom and uses the FIRST match.
+    - int first (correct):
+        /challenges/1       -> int matches   -> monthly_challenge_by_number
+        /challenges/january -> int fails, str matches -> monthly_challenge
+    - str first (wrong): str also matches "1", so the int route is never reached;
+      /challenges/1 goes to monthly_challenge and gives 404 "No challenge found for 1".
+    - Rule: put the more specific converter (int) before the general one (str).
+
 ## Helpful resources (Django docs: starting a project)
 
     - Tutorial part 1 (startproject, project layout, runserver, first app):
@@ -125,3 +163,5 @@
         https://github.com/academind/django-practical-guide-course-code/tree/setup-zz-extra-files
     - Python virtual environments (venv):
         https://docs.python.org/3/tutorial/venv.html
+    - URL dispatcher (path(), include(), path converters int/str/slug...):
+        https://docs.djangoproject.com/en/6.0/topics/http/urls/
