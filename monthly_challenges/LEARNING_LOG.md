@@ -73,6 +73,44 @@
       (admin.py, apps.py, migrations/, models.py, tests.py, views.py).
     - Files are still the defaults; no views or URLs written yet.
 
+## First view and URL (challenges/views.py + challenges/urls.py)
+
+    - challenges/views.py:
+        from django.http import HttpResponse
+
+        def index(request):
+            return HttpResponse("Hello, World!")
+    - challenges/urls.py (new file, made by me - startapp does not create it):
+        from django.urls import path
+        from . import views
+
+        urlpatterns = [
+            path("january", views.index),
+        ]
+    - monthly_challenges/urls.py connects the app URLs with include():
+        from django.urls import path, include
+
+        urlpatterns = [
+            path('admin/', admin.site.urls),
+            path("challenges/", include("challenges.urls")),
+        ]
+    - Result: challenges/ + january = http://127.0.0.1:8000/challenges/january
+      -> "Hello, World!"
+
+## Error: view without the request parameter
+
+    - First wrote def index(): (no parameter).
+    - Opening /challenges/january gave:
+        TypeError: index() takes 0 positional arguments but 1 was given
+    - Django always passes the request object to a view as the first argument.
+    - Fix: def index(request):
+
+## Trailing slash in the route
+
+    - path("january", ...) matches only /challenges/january
+    - /challenges/january/ (with slash) -> 404 Page not found.
+    - Common Django style is path("january/", ...) so the URL ends with a slash.
+
 ## Helpful resources (Django docs: starting a project)
 
     - Tutorial part 1 (startproject, project layout, runserver, first app):
