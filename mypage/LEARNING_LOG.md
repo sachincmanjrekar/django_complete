@@ -60,6 +60,19 @@
 
 ## Section 2 complete
 
+## django-admin startproject monthly_challenges
+
+    - New project for section 3, next to mypage in django_complete/.
+    - Same layout as before:
+        manage.py
+        monthly_challenges/  -> settings.py, urls.py, asgi.py, wsgi.py, __init__.py
+
+## python manage.py startapp challenges (inside monthly_challenges)
+
+    - Creates the "challenges" app in the monthly_challenges project
+      (admin.py, apps.py, migrations/, models.py, tests.py, views.py).
+    - Files are still the defaults; no views or URLs written yet.
+
 ## Helpful resources (Django docs: starting a project)
 
     - Tutorial part 1 (startproject, project layout, runserver, first app):
