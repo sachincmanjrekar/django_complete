@@ -618,6 +618,38 @@
     - Never deploy with DEBUG = True: the debug page shows code, settings and
       URL lists to anyone.
 
+## Adding static files (CSS) to an app
+
+    - Static files = files sent as-is to the browser (CSS, JS, images).
+    - Folder: challenges/static/challenges/challenges.css
+      (same namespacing idea as templates: static/<app name>/...)
+        ul {
+            list-style: none;
+        }
+    - Found automatically because:
+        'django.contrib.staticfiles' is in INSTALLED_APPS (default)
+        "challenges" is in INSTALLED_APPS -> its static/ folder is searched
+        STATIC_URL = 'static/' -> files are served under /static/...
+    - base.html gets a new EMPTY block in <head> for page-specific CSS:
+        <title>{% block title %}...{% endblock %}</title>
+        {% block css_files %}
+        {% endblock %}
+    - index.html fills that block:
+        {% extends "base.html" %}
+        {% load static %}
+
+        {% block css_files %}
+            <link rel="stylesheet" href="{% static 'challenges/challenges.css' %}">
+        {% endblock %}
+    - {% load static %} -> makes the static tag available in THIS template
+      (needed in every template that uses it, even if base.html loads it;
+       goes after {% extends %}, which must stay first).
+    - {% static 'challenges/challenges.css' %} -> "/static/challenges/challenges.css"
+      (like {% url %} for static files: never hard-code "/static/").
+    - Result: /challenges/ list has no bullet points.
+    - Static files are served by runserver only while DEBUG = True;
+      in deployment the web server serves them (collectstatic, later).
+
 ## Helpful resources (Django docs: starting a project)
 
     - Tutorial part 1 (startproject, project layout, runserver, first app):
