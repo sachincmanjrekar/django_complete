@@ -537,6 +537,24 @@
         {% extends %}  -> my page fits INTO a parent layout (one per template, first tag)
         {% include %}  -> a piece is put INTO my page (as many as needed, anywhere)
 
+## More on DTL (Django Template Language) - it is NOT Python
+
+    - DTL looks like Python but is a separate language parsed by Django,
+      so some syntax is different.
+    - Dictionary fields -> dot notation, NOT square brackets:
+        wrong:  {{ myDictionary['some_key'] }}
+        right:  {{ myDictionary.some_key }}
+    - Calling functions -> NO parentheses, use them like a variable:
+        wrong:  {{ result_from_a_function() }}
+        right:  {{ result_from_a_function }}
+      (Same as {{ month_name.capitalize }} earlier - Django calls it for me.
+       Because of this, functions that need arguments can't be called in
+       templates; do that work in the view or use a filter.)
+    - The dot does all lookups: for {{ a.b }} Django tries, in order,
+        dictionary key   a["b"]
+        attribute/method a.b   (called if it's a method)
+        list index       a[b]  (e.g. {{ months.0 }} -> "january")
+
 ## Helpful resources (Django docs: starting a project)
 
     - Tutorial part 1 (startproject, project layout, runserver, first app):
