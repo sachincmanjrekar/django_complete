@@ -19,7 +19,6 @@ from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('blog/', include('blog.urls')) #http://localhost:8000/blog/ will be handled by blog.urls
+    path('', include('blog.urls')) #http://localhost:8000/ will be handled by blog.urls
 ]
 
-    

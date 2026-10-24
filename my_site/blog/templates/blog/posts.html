@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}All My Posts{% endblock %}
+
+{% block content %}
+<h1>All My Posts</h1>
+<ul>
+    <li><a href="{% url 'post_detail-page' 'mountain-hiking' %}">Mountain Hiking</a></li>
+</ul>
+<a href="{% url 'starting-page' %}">Back to home</a>
+{% endblock %}

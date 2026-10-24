@@ -4,12 +4,12 @@ from django.shortcuts import render
 
 
 def starting_page(request):
-    pass
+    return render(request, "blog/index.html")
 
 
 def posts(request):
-    pass
+    return render(request, "blog/posts.html")
 
 
 def post_detail(request, slug): 
-    pass
+    return render(request, "blog/post_detail.html", {"slug": slug})
