@@ -85,6 +85,7 @@
     - /posts/ and /posts/<slug>/ crashed with TemplateDoesNotExist.
     - Added simple templates extending base.html:
         posts.html       -> "All My Posts" + link to the Mountain Hiking post
+                            (later replaced by all-posts.html)
         post_detail.html -> <h1>Post: {{ slug }}</h1> + link to All Posts
 
 ## Images as static files
@@ -97,6 +98,66 @@
     - Path in {% static %} is relative to the static/ folder.
     - Safer (namespaced) location: blog/static/blog/images/ -> 'blog/images/...'
     - coding.jpg and woods.jpg not used yet (only one post so far).
+
+## Moving shared pieces to base.html / app.css (navigation)
+
+    - The <header id="main-navigation"> was only in index.html, but every
+      page needs it -> moved into templates/base.html, above {% block content %}:
+        <body>
+            <header id="main-navigation">
+                <h1><a href="{% url 'starting-page' %}">Sachin's blog</a></h1>
+                <nav>
+                    <a href="{% url 'posts-page' %}">All Posts</a>
+                </nav>
+            </header>
+            {% block content %}{% endblock %}
+        </body>
+    - Its CSS moved with it: #main-navigation rules from blog/index.css -> static/app.css
+      (app.css is loaded on every page by base.html).
+    - Rule: markup used on every page -> base.html; its CSS -> global CSS.
+
+## Post card as an include (blog/includes/post.html)
+
+    - One post card (li > article.post > a > img + h3 + p) in its own file:
+        blog/templates/blog/includes/post.html
+      It has its own {% load static %} because it uses {% static %} itself.
+    - index.html (latest posts):
+        <ul>
+            {% include "blog/includes/post.html" %}
+        </ul>
+    - Card CSS moved to blog/static/blog/post.css, linked by every page that
+      shows posts (index.html and all-posts.html), before the page's own CSS:
+        <link rel="stylesheet" href="{% static 'blog/post.css' %}"/>
+        <link rel="stylesheet" href="{% static 'blog/index.css' %}"/>
+
+## All posts page (all-posts.html + all-posts.css)
+
+    - views.py -> posts() now renders the new template:
+        return render(request, "blog/all-posts.html")
+    - blog/templates/blog/all-posts.html:
+        {% block title %}All My Posts{% endblock %}
+        {% block css_files %}
+            post.css + all-posts.css
+        {% endblock %}
+        <section id="all-posts">
+            <h2>My collected Posts</h2>
+            <ul>
+                {% include "blog/includes/post.html" %}   (x6)
+            </ul>
+        </section>
+    - all-posts.css: light background, purple nav bar, cards in a CSS grid,
+      bigger images; it overrides some post.css rules because it loads AFTER it.
+    - All 6 cards are the same Mountain Hiking post for now (hard-coded in
+      post.html) - real data comes later.
+
+## Cleanup after the refactor
+
+    - index.css still had copies of the #main-navigation and .post rules
+      (now in app.css and post.css) -> deleted, so each style lives in ONE place.
+      index.css now only styles the home page: #welcome, #latest-posts, #about.
+    - "My colleced Posts" typo -> "My collected Posts".
+    - all-posts.html title "My Blog" (same as home) -> "All My Posts".
+    - Deleted the placeholder posts.html (view uses all-posts.html now).
 
 ## Helpful resources
 

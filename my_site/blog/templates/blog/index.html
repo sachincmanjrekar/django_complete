@@ -3,16 +3,12 @@
 {% block title %}My Blog{% endblock %}
 
 {% block css_files %}
+<link rel="stylesheet" href="{% static 'blog/post.css' %}"/>
 <link rel="stylesheet" href="{% static 'blog/index.css' %}"/>
 {% endblock %}
 
 {% block content %}
-<header id="main-navigation">
-    <h1><a href="{% url 'starting-page' %}">Sachin's blog</a></h1>
-    <nav>
-        <a href="{% url 'posts-page' %}">All Posts</a>
-    </nav>
-</header>
+
 <section id="welcome">
     <header>
         <img src="{% static 'images/sachin.jpg' %}" alt="Sachin - The Author of This Blog" />
@@ -23,17 +19,7 @@
 <section id="latest-posts">
     <h2>The Latest Thoughts</h2>
     <ul>
-        <li>
-            <article class="post">
-                <a href="{% url 'post_detail-page' 'mountain-hiking' %}">
-                    <img src="{% static 'images/mountains.jpg' %}" alt="Mountain Hiking" />
-                    <div class="post__content">
-                        <h3>Mountain Hiking</h3>
-                        <p>Mountain view is great, I love it</p>
-                    </div>
-                </a>
-            </article>
-        </li>
+{% include "blog/includes/post.html" %}
     </ul>
 </section>
 <section id="about">
