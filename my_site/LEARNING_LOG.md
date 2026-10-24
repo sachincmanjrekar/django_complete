@@ -341,6 +341,23 @@
     - Edits not saved in VS Code -> Django still runs the old file
       (dot on the editor tab = unsaved; Ctrl + S).
 
+## Custom 404 page (templates/404.html)
+
+    - Project-level templates/404.html, extends base.html:
+        {% extends "base.html" %}
+        {% block title %}We didn't find that page{% endblock %}
+        {% block content %}
+            <h2>Sorry</h2>
+            <p>Coud not find that page</p>
+        {% endblock %}
+    - Shown automatically when a view raises Http404 (e.g. /posts/nope/),
+      but ONLY with DEBUG = False (+ ALLOWED_HOSTS set). With DEBUG = True
+      Django shows its yellow debug 404 page instead.
+    - The name must be exactly 404.html in a templates folder; no view code needed.
+    - Typo to fix: "Coud" -> "Could".
+
+## Section 5 complete (Blog project: URLs, views, templates, static files)
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
@@ -350,6 +367,8 @@
     - Blog project course files (CSS + images), and lesson snapshots in the
       branches starting with "prj-urls-views-templates-...":
         https://github.com/academind/django-practical-guide-course-code/tree/prj-urls-views-templates-zz-extra-files
+    - Example snapshot (first lesson of this section):
+        https://github.com/academind/django-practical-guide-course-code/tree/prj-urls-views-templates-01-adding-urls-and-views
     - Path converters (str, int, slug, uuid, path) in URLs:
         https://docs.djangoproject.com/en/3.1/topics/http/urls/#path-converters
     - PEP 8 (Python style guide):
