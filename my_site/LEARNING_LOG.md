@@ -159,12 +159,67 @@
     - all-posts.html title "My Blog" (same as home) -> "All My Posts".
     - Deleted the placeholder posts.html (view uses all-posts.html now).
 
+## Single post page (post_detail.html + post-detail.css)
+
+    - blog/templates/blog/post_detail.html:
+        {% extends "base.html" %}
+        {% load static %}
+        {% block title %}This Post Title{% endblock %}
+        {% block css_files %}
+            <link rel="stylesheet" href="{% static 'blog/post-detail.css' %}" />
+        {% endblock %}
+        {% block content %}
+            <section id="summary">
+                <h2>Post Title</h2>
+                <article>
+                    <img src="{% static 'blog/images/mountains.jpg' %}" alt="Post Title" />
+                    <address>By Sachin</address>
+                    <div>Last updated on <time>August 10</time></div>
+                </article>
+            </section>
+            <main>
+                <p>Lorem ipsum ...</p>
+            </main>
+        {% endblock %}
+    - <address> = author info, <time> = a date, <main> = the page's main content
+      (semantic HTML tags).
+    - blog/static/blog/post-detail.css = course file (from the
+      prj-urls-views-templates-zz-extra-files branch): purple #summary box,
+      tilted image, white main card.
+    - Content is placeholder for now; the slug from the URL isn't shown yet.
+
+## Error: block tag appears more than once
+
+    - Had two title blocks in post_detail.html:
+        {% block title %}Thid Post Title{% endblock %}
+        {% block title %}All My Posts{% endblock %}
+    - Opening /posts/mountain-hiking/ gave:
+        TemplateSyntaxError: 'block' tag with name 'title' appears more than once
+    - Each block name may appear only ONCE per template -> kept one:
+        {% block title %}This Post Title{% endblock %}
+
+## Moving images to the namespaced static folder
+
+    - post_detail.html used {% static 'blog/images/mountains.jpg' %}, but the
+      images were in blog/static/images/ -> image not found.
+    - Moved them (git mv keeps history):
+        blog/static/images/       ->  blog/static/blog/images/
+    - Updated index.html and includes/post.html to match:
+        {% static 'images/sachin.jpg' %}  ->  {% static 'blog/images/sachin.jpg' %}
+    - Same namespacing rule as templates: static/<app name>/... so files from
+      different apps can't clash.
+    - A missing static file gives NO template error - the image/CSS just
+      silently doesn't load (check the browser's network tab for 404s).
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
         https://github.com/academind/django-practical-guide-course-code
     - Django docs:
         https://docs.djangoproject.com/en/6.0/
+    - Blog project course files (CSS + images), and lesson snapshots in the
+      branches starting with "prj-urls-views-templates-...":
+        https://github.com/academind/django-practical-guide-course-code/tree/prj-urls-views-templates-zz-extra-files
     - Path converters (str, int, slug, uuid, path) in URLs:
         https://docs.djangoproject.com/en/3.1/topics/http/urls/#path-converters
     - PEP 8 (Python style guide):

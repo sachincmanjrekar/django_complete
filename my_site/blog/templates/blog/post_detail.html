@@ -1,7 +1,27 @@
 {% extends "base.html" %}
-{% block title %}{{ slug }}{% endblock %}
+{% load static %}
+
+{% block title %}This Post Title{% endblock %}
+
+{% block css_files %}
+<link rel="stylesheet" href="{% static 'blog/post-detail.css' %}" />
+{% endblock %}
 
 {% block content %}
-<h1>Post: {{ slug }}</h1>
-<a href="{% url 'posts-page' %}">All Posts</a>
+<section id="summary">
+    <h2>Post Title</h2>
+    <article>
+        <img src="{% static 'blog/images/mountains.jpg' %}" alt="Post Title" />
+        <address>By Sachin</address>
+        <div>
+            Last updated on <time>August 10</time>
+        </div>
+    </article>
+</section>
+<main>
+    <p>
+        Lorem ipsum dolor sit amet consectetur, adipisicing elit. Doloremque praesentium vero tenetur sunt quae quasi,
+        provident exercitationem voluptatibus ex modi velit cum molestiae hic, aperiam rem repudiandae, et adipisci ab!
+    </p>
+</main>
 {% endblock %}
