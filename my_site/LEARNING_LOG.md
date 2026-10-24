@@ -211,6 +211,93 @@
     - A missing static file gives NO template error - the image/CSS just
       silently doesn't load (check the browser's network tab for 404s).
 
+## Dummy data in views.py (list of post dicts)
+
+    - blog/views.py -> module-level list, one dict per post:
+        from datetime import date
+
+        all_posts = [
+            {
+                "slug": "hike-in-the-mountains",
+                "image": "mountains.jpg",
+                "author": "Maximilian",
+                "date": date(2021, 7, 21),
+                "title": "Mountain Hiking",
+                "excerpt": "There's nothing like the views ...",
+                "content": """ Lorem ipsum ... """,
+            },
+            ... "programming-is-fun" (coding.jpg), "into-the-woods" (woods.jpg)
+        ]
+    - date(2021, 7, 21) = Python date object, so posts can be sorted by date.
+    - Later this data comes from a database (models).
+
+## Latest 3 posts: sorted() + slicing
+
+    - views.py:
+        def get_date(post):
+            return post['date']
+
+        def starting_page(request):
+            sorted_posts = sorted(all_posts, key=get_date)
+            latest_posts = sorted_posts[-3:]
+            return render(request, "blog/index.html", {"posts": latest_posts})
+    - sorted(list, key=function) -> new list; key tells WHAT to compare
+      (here each post's date). Oldest first.
+    - Bug: wrote sorted_posts[-3:0] -> always EMPTY (end index 0 is before
+      the start), so the for loop ran zero times and no posts showed.
+        [-3:0] -> []
+        [-3:]  -> last 3 items (no end = up to the end of the list)
+    - Newest first instead: sorted(all_posts, key=get_date, reverse=True)[:3]
+
+## Looping over posts and using post data in the include
+
+    - index.html:
+        <ul>
+            {% for post in posts %}
+                {% include "blog/includes/post.html" %}
+            {% endfor %}
+        </ul>
+    - The include sees the loop variable post, so includes/post.html uses its fields:
+        <a href="{% url 'post_detail-page' post.slug %}">
+            <img src="{% static 'blog/images/'|add:post.image %}" alt="{{ post.title }}" />
+            <div class="post__content">
+                <h3>{{ post.title }}</h3>
+                <p>{{ post.excerpt }}</p>
+            </div>
+        </a>
+    - post.title = dict key lookup with a dot (DTL, not post['title']).
+    - 'blog/images/'|add:post.image -> "blog/images/woods.jpg" (add filter
+      builds the static path dynamically).
+
+## Errors on the way (template syntax)
+
+    - Space after the pipe:
+        {% static 'blog/images/'| add:post.image %}
+        TemplateSyntaxError: Could not parse the remainder: '|' from ''blog/images/'|'
+      -> no spaces around | in filters: 'blog/images/'|add:post.image
+    - Stray quote after a variable:
+        {% url 'post_detail-page' post.slug' %}
+        TemplateSyntaxError: Could not parse the remainder: ''' from 'post.slug''
+      -> quotes = fixed text ('mountain-hiking'); variables get NO quotes (post.slug)
+    - Empty slug in {% url %}:
+        NoReverseMatch: Reverse for 'post_detail-page' with arguments '('',)' not found.
+      all-posts.html used the include without any post variable -> post.slug = ""
+      -> <slug:slug> needs at least 1 character, so the URL can't be built.
+
+## All posts page with real data
+
+    - views.py:
+        def posts(request):
+            return render(request, "blog/all-posts.html", {"all_posts": all_posts})
+    - all-posts.html: six hard-coded includes -> one loop:
+        <ul>
+            {% for post in all_posts %}
+                {% include "blog/includes/post.html" %}
+            {% endfor %}
+        </ul>
+    - / shows the latest 3 (sorted by date); /posts/ shows all posts in list order.
+    - post_detail still shows placeholder content for every slug.
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
