@@ -298,6 +298,49 @@
     - / shows the latest 3 (sorted by date); /posts/ shows all posts in list order.
     - post_detail still shows placeholder content for every slug.
 
+## Single post page with real data (find the post by slug)
+
+    - views.py:
+        from django.http import Http404
+
+        def post_detail(request, slug):
+            identified_post = next((post for post in all_posts if post['slug'] == slug), None)
+            if identified_post is None:
+                raise Http404()
+            return render(request, "blog/post_detail.html", {"post": identified_post})
+    - (post for post in all_posts if post['slug'] == slug) = generator expression:
+      goes through the posts and yields only the ones with a matching slug.
+    - next(generator, None) -> the FIRST match, or None if there is none.
+    - post_detail.html uses the post's fields:
+        {% block title %}{{ post.title }}{% endblock %}
+        <h2>{{ post.title }}</h2>
+        <img src="{% static 'blog/images/'|add:post.image %}" alt="{{ post.title }}" />
+        <address>By {{ post.author }}</address>
+        Last updated on <time>{{ post.date|date:'d M Y' }}</time>
+        <p>{{ post.content }}</p>
+    - |date:'d M Y' formats a date object -> date(2020, 8, 5) -> "05 Aug 2020"
+      (d = day with 0, M = short month name, Y = 4-digit year).
+    - Results:
+        /posts/into-the-woods/        -> Nature At Its Best, woods.jpg, 05 Aug 2020
+        /posts/hike-in-the-mountains/ -> Mountain Hiking, mountains.jpg, 21 Jul 2021
+        /posts/programming-is-fun/    -> Programming Is Great!, coding.jpg, 10 Mar 2022
+        /posts/nope/                  -> 404 Page not found
+
+## Errors on the way (post_detail)
+
+    - Looped over the wrong name:
+        next(post for post in posts if ...)
+        TypeError: 'function' object is not iterable
+      posts is the VIEW FUNCTION def posts(request); the data list is all_posts.
+      Lesson: a variable and a function with the same name -> easy mix-up.
+    - Unknown slug without a default:
+        next(post for post in all_posts if ...)    /posts/nope/ -> StopIteration
+      next() with nothing to return raises StopIteration -> 500 server error.
+      Fix: next((...), None) + raise Http404() -> proper 404.
+      The extra ( ) around the generator are needed once there's a 2nd argument.
+    - Edits not saved in VS Code -> Django still runs the old file
+      (dot on the editor tab = unsaved; Ctrl + S).
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
