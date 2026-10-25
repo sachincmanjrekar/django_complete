@@ -656,6 +656,33 @@
       but Django records them. Both applied (last = 0006).
     - Tip: make all changes first, then ONE makemigrations -> fewer files.
 
+## Customising the admin: ModelAdmin + prepopulated_fields
+
+    - book_outlet/admin.py:
+        class BookAdmin(admin.ModelAdmin):
+            prepopulated_fields = {"slug": ("title",)}
+
+        admin.site.register(Book, BookAdmin)
+    - ModelAdmin = a class with settings for how ONE model looks/works in the admin;
+      passed as the 2nd argument to register().
+    - prepopulated_fields -> while typing the title in the admin form, JavaScript
+      fills the slug field live ("Harry Potter 1" -> "harry-potter-1"); the slug
+      can still be edited by hand before saving.
+    - ("title",) is a TUPLE - the trailing comma matters (("title") is just a string).
+    - For this the slug must be visible in the form again -> removed editable=False:
+        slug = models.SlugField(default="", blank=True, null=False, db_index=True)
+      (a field with editable=False can't be in prepopulated_fields).
+    - Removed the save() override - the admin now creates the slug instead.
+    - makemigrations -> 0007_alter_book_slug.py (AlterField slug:
+      SlugField(blank=True, default='') - editable=False removed) -> migrate (applied).
+    - Watch out: without save(), books created in the SHELL (objects.create)
+      get slug "" -> {{ book.get_absoulte_url }} -> reverse() with an empty slug
+      -> NoReverseMatch -> the index page crashes. Only the admin fills slugs now.
+    - Removed the now-unused "from django.utils.text import slugify" from models.py.
+    - Decision: books are only added through the admin, so no save() override
+      is needed (shell-created books would get slug "" - stored as an empty
+      string - and break the index page links).
+
 ## Using the admin: add and edit rows
 
     - Edited will_power -> is_bestselling now True.
