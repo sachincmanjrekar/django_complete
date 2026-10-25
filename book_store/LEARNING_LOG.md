@@ -587,6 +587,8 @@
       ("Lord..." before "a book").
     - order_by doesn't change count() or aggregate() results.
 
+## Section 6 complete (Data and models)
+
 ## blank vs null
 
 |                  | `null=True`                    | `blank=True`                               |
@@ -626,6 +628,10 @@
 
     - Course code snapshot repository (branch per lesson):
         https://github.com/academind/django-practical-guide-course-code
+    - Section 6 code snapshots = branches starting with "data-models-...", e.g.:
+        https://github.com/academind/django-practical-guide-course-code/tree/data-models-01-first-model-and-migration
+    - Section 6 module slides:
+        https://github.com/academind/django-practical-guide-course-code/tree/data-models-zz-extra-files/slides
     - SQL vs NoSQL databases (Academind article):
         https://academind.com/articles/sql-vs-nosql
     - Django docs:
