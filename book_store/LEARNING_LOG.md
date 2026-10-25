@@ -547,6 +547,46 @@
     - unique=True also creates an index AND blocks duplicates (would need a
       migration) - the fix for two books with the same slug.
 
+## Aggregation: count() and aggregate(Avg) on the index page
+
+    - views.py:
+        from django.db.models import Avg
+
+        def index(request):
+            books = Book.objects.all().order_by("title")
+            num_books = books.count()
+            avg_rating = books.aggregate(Avg("rating"))  # {"rating__avg": 3.0}
+
+            return render(request, "book_outlet/index.html", {
+                "books": books,
+                "total_number_of_books": num_books,
+                "average_rating": avg_rating["rating__avg"],
+            })
+    - books.count() -> SQL SELECT COUNT(*) - the database counts, the books
+      are NOT loaded into Python (faster than len(books)).
+    - aggregate(Avg("rating")) -> the database calculates the average and
+      returns a DICT; key = field name + "__avg" -> {"rating__avg": 3.0}.
+      Others: Sum, Min, Max, Count; several at once:
+        books.aggregate(Avg("rating"), Max("rating"))
+        -> {"rating__avg": 3.0, "rating__max": 5}
+    - index.html:
+        <p>Total number of books: {{ total_number_of_books }}</p>
+        <p>Average rating: {{ average_rating|floatformat:1 }}</p>
+        <hr>
+        <ul> ... </ul>
+      floatformat:1 -> round to 1 decimal (3.6667 -> 3.7).
+    - Result: Total number of books: 4, Average rating: 3.0  ((4+5+2+1) / 4)
+
+## Ordering: order_by()
+
+    - Book.objects.all().order_by("title") -> A-Z by title:
+        Harry Potter 1, Lord of the Rings, my struggle, will_power
+    - order_by("-title")           -> Z-A ("-" = descending)
+    - order_by("-rating", "title") -> highest rating first, ties by title
+    - SQLite sorts case-SENSITIVELY: uppercase letters come before lowercase
+      ("Lord..." before "a book").
+    - order_by doesn't change count() or aggregate() results.
+
 ## blank vs null
 
 |                  | `null=True`                    | `blank=True`                               |
