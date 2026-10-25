@@ -683,6 +683,23 @@
       is needed (shell-created books would get slug "" - stored as an empty
       string - and break the index page links).
 
+## Admin list page: list_display and list_filter
+
+    - book_outlet/admin.py:
+        class BookAdmin(admin.ModelAdmin):
+            prepopulated_fields = {"slug": ("title",)}
+            list_filter = ("author", "rating",)
+            list_display = ("title", "author")
+    - list_display -> which columns the list page shows (instead of only the
+      __str__ text): Title | Author. Click a column header to sort by it.
+    - list_filter -> a "FILTER" sidebar on the right with one section per field
+      (By author, By rating); clicking a value filters the list via the URL,
+      e.g. /admin/book_outlet/book/?rating=5
+    - Both take a tuple/list of field NAMES (strings).
+    - Other useful options: search_fields = ("title",) (search box),
+      ordering = ("title",), list_per_page = 20.
+    - Only changes the admin, not the database -> no migration needed.
+
 ## Using the admin: add and edit rows
 
     - Edited will_power -> is_bestselling now True.
@@ -690,6 +707,8 @@
         (6, 'Mein Furher', 4, 'Hitler', True, 'mein-furher')
     - Admin saves go through the model's save() -> slug is set automatically,
       and validation runs (rating 1-5, author required).
+
+## Section 7 complete (Django admin)
 
 ## blank vs null
 
@@ -734,6 +753,11 @@
         https://github.com/academind/django-practical-guide-course-code/tree/data-models-01-first-model-and-migration
     - Section 6 module slides:
         https://github.com/academind/django-practical-guide-course-code/tree/data-models-zz-extra-files/slides
+    - Section 7 code snapshots = branches starting with "admin-...", e.g.:
+        https://github.com/academind/django-practical-guide-course-code/tree/admin-01-configuring-model-fields/
+    - Django admin docs (ModelAdmin options: list_display, list_filter,
+      prepopulated_fields, search_fields...):
+        https://docs.djangoproject.com/en/6.0/ref/contrib/admin/
     - SQL vs NoSQL databases (Academind article):
         https://academind.com/articles/sql-vs-nosql
     - Django docs:
