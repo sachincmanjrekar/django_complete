@@ -142,6 +142,28 @@
     - null=True  -> the DATABASE allows empty (NULL).
       blank=True -> FORMS/validation allow empty (different thing, used later).
 
+## blank vs null
+
+|                  | `null=True`                    | `blank=True`                               |
+|------------------|--------------------------------|--------------------------------------------|
+| Applies to       | the **database** column        | **validation** (forms, admin, full_clean()) |
+| Allows           | storing `NULL` (`None`)        | submitting the field empty                 |
+| Default          | `False` -> column `NOT NULL`   | `False` -> field required in forms         |
+| Changes the DB?  | yes (new migration alters column) | no (migration only records it)          |
+
+    - Examples:
+        CharField(max_length=100, null=True)               DB accepts NULL, forms still require it
+        CharField(max_length=100, blank=True)              forms accept empty, saved as "" (empty string)
+        CharField(max_length=100, null=True, blank=True)   optional, stored as NULL
+    - Rules of thumb:
+        text fields (CharField, TextField) -> blank=True only; empty = ""
+          (null=True too gives two kinds of "empty": None and "" - avoid)
+        numbers, dates, booleans, ForeignKey -> null=True, blank=True together
+          (no "empty string" for a number, so NULL is the only "no value")
+    - My author field has null=True only -> DB is fine with None, but the admin/
+      forms will still say "This field is required". For an optional author:
+      blank=True (or null=True, blank=True).
+
 ## Validators (MinValueValidator, MaxValueValidator)
 
     - validators=[...] -> checks run by Django when validating
