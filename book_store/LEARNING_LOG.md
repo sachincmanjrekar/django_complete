@@ -400,6 +400,63 @@
         my struggle (Rating: 2)
         will_power (Rating: 1)
 
+## Book detail page (get_object_or_404)
+
+    - book_outlet/urls.py:
+        urlpatterns = [path("", views.index),
+                       path("<int:id>", views.book_detail, name="book-detail")]
+    - views.py:
+        from django.shortcuts import render, get_object_or_404
+
+        def book_detail(request, id):
+            # try:
+            #     book = Book.objects.get(pk=id)
+            # except:
+            #     raise Http404()
+            book = get_object_or_404(Book, pk=id)
+            return render(request, "book_outlet/book_detail.html",
+                          {"title": book.title,
+                           "author": book.author,
+                           "rating": book.rating,
+                           "is_bestseller": book.is_bestselling})
+    - pk = "primary key" = id here (pk works even if the key has another name).
+    - get_object_or_404(Model, ...) = get() + raise Http404 if nothing found,
+      in ONE line (replaces the commented try/except).
+    - book_detail.html:
+        <h1>{{ title }}</h1>
+        <h2>{{ author }}</h2>
+        <p>The book has rating of {{ rating }}
+            {% if is_bestseller %} and is bestseller
+            {% else %} but isn't best seller {% endif %}
+        </p>
+    - Results:
+        /3 -> hp1, JK, "rating of 5 and is bestseller"
+        /4 -> my struggle, sachin, "rating of 2 but isn't best seller"
+        /1 -> 404 (that book was deleted)
+        /3/ -> 404 (route has no trailing slash)
+    - Simpler: pass the whole object {"book": book} and use {{ book.title }} etc.
+
+## Linking to the detail page: {% url %} vs get_absolute_url
+
+    - First: named the route and used the url tag in index.html:
+        <a href="{% url 'book-detail' book.id %}">{{ book.title }}</a>
+      -> lr /2, hp1 /3, my struggle /4, will_power /5
+    - Then: moved the URL building INTO the model:
+        from django.urls import reverse
+
+        class Book(models.Model):
+            ...
+            def get_absoulte_url(self):
+                return reverse("book-detail", args=[self.id])
+      index.html:
+        <a href="{{ book.get_absoulte_url }}">{{ book.title }}</a>
+    - Why: the model knows its own URL; every template just uses
+      {{ book.get_absolute_url }} - change the URL logic in ONE place.
+    - Method called WITHOUT () in the template (DTL calls it automatically).
+    - TYPO: get_absoulte_url -> should be get_absolute_url. It still works
+      (same misspelling in both places), but Django looks for the exact name
+      get_absolute_url (e.g. the admin's "View on site" button), so fix both.
+
 ## blank vs null
 
 |                  | `null=True`                    | `blank=True`                               |
