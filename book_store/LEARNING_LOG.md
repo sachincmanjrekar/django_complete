@@ -589,6 +589,57 @@
 
 ## Section 6 complete (Data and models)
 
+## Section 7: Django admin
+
+## Admin site and createsuperuser
+
+    - Admin = ready-made website to add / edit / delete rows:
+        http://127.0.0.1:8000/admin/
+      (path('admin/', admin.site.urls) is already in book_store/book_store/urls.py)
+    - python manage.py createsuperuser
+        -> asks username, email, password -> creates an admin user (mine: admin)
+        -> stored in the auth_user table (created by the first migrate)
+           id 1, username admin, is_superuser = True, is_staff = True
+    - is_staff     -> may log in to the admin
+      is_superuser -> has ALL permissions
+    - Models only show up in the admin after they are registered in admin.py.
+
+## Registering a model in the admin (admin.site.register)
+
+    - book_outlet/admin.py:
+        from django.contrib import admin
+
+        from .models import Book
+
+        admin.site.register(Book)
+    - /admin/ now shows "BOOK_OUTLET -> Books" (app name + plural model name).
+    - /admin/book_outlet/book/ lists the rows using __str__:
+        will_power (1), my struggle (2), Harry Potter 1 (5), Lord of the Rings (4)
+      (newest first by default).
+    - Click a row -> edit form; "Add book" -> create; "Delete" -> remove.
+    - The admin RUNS validation (unlike save() in the shell), so my model's
+      settings show up in the forms:
+        rating validators [MinValueValidator(1), MinValueValidator(5)] ->
+          editing a book with rating 1-4 fails: "Ensure this value is greater
+          than or equal to 5." (the MaxValueValidator bug)
+        author has null=True but no blank=True -> admin says "This field is required"
+        slug is editable in the form, but save() overwrites it with slugify(title)
+
+## Fixing the rating validator (MaxValueValidator) - migration 0004
+
+    - models.py:
+        before: validators=[MinValueValidator(1), MinValueValidator(5)]   # >= 5 only
+        after:  validators=[MinValueValidator(1), MaxValueValidator(5)]   # 1 to 5
+    - makemigrations -> 0004_alter_book_rating.py:
+        migrations.AlterField(model_name='book', name='rating',
+            field=models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)]))
+      dependencies = [('book_outlet', '0003_book_slug')]
+    - migrate -> applied (0004 recorded in django_migrations).
+    - Validators live only in Python (no database change), but Django still
+      writes a migration so its record of the model stays complete.
+    - Now the admin accepts ratings 1-5 and rejects 0 or 6+:
+        "Ensure this value is less than or equal to 5."
+
 ## blank vs null
 
 |                  | `null=True`                    | `blank=True`                               |
