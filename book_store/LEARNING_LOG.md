@@ -457,6 +457,78 @@
       (same misspelling in both places), but Django looks for the exact name
       get_absolute_url (e.g. the admin's "View on site" button), so fix both.
 
+## get() with no match (DoesNotExist)
+
+    - In python manage.py shell:
+        >>> print(Book.objects.get(title="hp"))
+        book_outlet.models.Book.DoesNotExist: Book matching query does not exist.
+    - The book was called "hp1", not "hp" -> exact match finds 0 rows.
+    - get() errors: 0 matches -> DoesNotExist, 2+ -> MultipleObjectsReturned.
+    - Safer options:
+        Book.objects.filter(title__startswith="hp")   # QuerySet, no error
+        Book.objects.filter(title="hp").first()       # None if no match
+
+## Slug field + overriding save() (slugify)
+
+    - models.py:
+        from django.utils.text import slugify
+
+        class Book(models.Model):
+            ...
+            slug = models.SlugField(default="", null=False)  # Harry Potter 1 => harry-potter-1
+
+            def save(self, *args, **kwargs):
+                self.slug = slugify(self.title)
+                super().save(*args, **kwargs)
+    - makemigrations -> 0003_book_slug.py (AddField slug, default '') -> migrate.
+      Existing rows got the default '' (empty slug).
+    - SlugField = CharField for URL-friendly text (letters, numbers, - and _),
+      max_length 50 by default, indexed for fast lookups.
+    - slugify("Harry Potter 1") -> "harry-potter-1"
+      (lowercase, spaces -> "-", special characters removed; "_" is kept).
+    - Overriding save(): my code runs first (set the slug), then
+      super().save(*args, **kwargs) does the real saving. Forgetting super().save()
+      = nothing is saved!
+    - Renamed + re-saved the books so save() filled in every slug:
+        2  Lord of the Rings  -> lord-of-the-rings   (was "lr")
+        3  Harry Potter 1     -> harry-potter-1      (was "hp1")
+        4  my struggle        -> my-struggle
+        5  will_power         -> will_power
+        >>> print(Book.objects.get(title="Harry Potter 1").slug)
+        harry-potter-1
+    - Old rows only get a slug when saved again (save() runs per object).
+      Bulk methods (update(), bulk_create()) skip save() -> no slug.
+
+## Slug URLs instead of ids (/harry-potter-1 instead of /3)
+
+    - urls.py:
+        path("<slug:slug>", views.book_detail, name="book-detail")
+    - views.py:
+        def book_detail(request, slug):
+            book = get_object_or_404(Book, slug=slug)
+            ...
+    - models.py:
+        def get_absoulte_url(self):
+            return reverse("book-detail", args=[self.slug])
+    - What happens, step by step:
+        1. book.save()  -> my save() sets slug = slugify(title), then
+                           super().save() writes the row
+        2. index.html   -> {{ book.get_absoulte_url }} -> reverse() -> "/harry-potter-1"
+        3. click        -> <slug:slug> matches -> book_detail(request, slug="harry-potter-1")
+        4. view         -> get_object_or_404(Book, slug=slug) -> the book (or 404)
+        5. template     -> renders "Harry Potter 1"
+    - Results:
+        /                 -> links /lord-of-the-rings, /harry-potter-1, /my-struggle, /will_power
+        /harry-potter-1   -> Harry Potter 1 page
+        /3                -> 404 (ids aren't used in URLs anymore)
+    - Why: readable, SEO-friendly URLs.
+    - Watch out:
+        same title twice -> same slug -> get() finds 2 -> MultipleObjectsReturned
+          -> use SlugField(unique=True)
+        slug is rebuilt on every save -> renaming a book changes its URL
+          (old links break)
+        typo get_absoulte_url -> should be get_absolute_url
+
 ## blank vs null
 
 |                  | `null=True`                    | `blank=True`                               |
