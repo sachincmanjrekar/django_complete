@@ -112,6 +112,49 @@
       no makemigrations needed.
     - Also used later by the admin site and anywhere the object is printed.
 
+## Changing a model: new fields + second migration
+
+    - models.py:
+        from django.core.validators import MinValueValidator, MaxValueValidator
+
+        class Book(models.Model):
+            title = models.CharField(max_length=50)
+            rating = models.IntegerField(validators=[MinValueValidator(1), MinValueValidator(5)])
+            author = models.CharField(null=True, max_length=100)
+            is_bestselling = models.BooleanField(default=False)
+    - makemigrations -> 0002_book_author_book_is_bestselling_alter_book_rating.py:
+        AddField   author
+        AddField   is_bestselling
+        AlterField rating      (validators changed)
+      dependencies = [('book_outlet', '0001_initial')] -> runs after 0001.
+    - migrate -> the table now has columns author and is_bestselling.
+
+## New fields and EXISTING rows (null=True / default)
+
+    - The table already had 2 books. A new column needs SOME value for them:
+        author = CharField(null=True, ...)       -> old rows get NULL (None)
+        is_bestselling = BooleanField(default=False) -> old rows get False
+    - Without null=True or a default, makemigrations asks for a one-off
+      default value to fill in the existing rows.
+    - Database now:
+        (1, 'h1', 5, author=None, is_bestselling=False)
+        (2, 'lr', 4, author=None, is_bestselling=False)
+    - null=True  -> the DATABASE allows empty (NULL).
+      blank=True -> FORMS/validation allow empty (different thing, used later).
+
+## Validators (MinValueValidator, MaxValueValidator)
+
+    - validators=[...] -> checks run by Django when validating
+      (forms, admin, model.full_clean()), NOT a database constraint:
+      Book(title="x", rating=99).save() still saves 99 with no error.
+    - Bug in my code: used MinValueValidator for BOTH limits ->
+        [MinValueValidator(1), MinValueValidator(5)] = "at least 1 AND at least 5"
+        = only 5+ allowed, and no upper limit.
+      Should be:
+        validators=[MinValueValidator(1), MaxValueValidator(5)]   # 1 to 5
+      (MaxValueValidator was imported but not used.)
+      Fixing it = another AlterField -> makemigrations + migrate again.
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
