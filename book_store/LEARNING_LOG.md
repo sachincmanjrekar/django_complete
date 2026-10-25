@@ -529,6 +529,24 @@
           (old links break)
         typo get_absoulte_url -> should be get_absolute_url
 
+## db_index=True (database index)
+
+    - models.py:
+        slug = models.SlugField(default="", null=False, db_index=True)
+    - An index = an extra lookup structure in the database, so searching by
+      that column is fast (no scan through every row). Good for columns used
+      in lookups, e.g. get_object_or_404(Book, slug=slug) on every detail page.
+    - Cost: a bit more storage and slightly slower inserts/updates.
+    - SlugField already has db_index=True by DEFAULT (index was created by
+      0003_book_slug) -> adding it changes nothing:
+        python manage.py makemigrations --dry-run
+        No changes detected
+      Kept it in the code anyway to make the intent clear.
+    - For other fields (e.g. CharField) db_index=True must be added by hand
+      -> then makemigrations creates an AlterField migration.
+    - unique=True also creates an index AND blocks duplicates (would need a
+      migration) - the fix for two books with the same slug.
+
 ## blank vs null
 
 |                  | `null=True`                    | `blank=True`                               |
