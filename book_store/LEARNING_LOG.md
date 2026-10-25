@@ -362,6 +362,44 @@
       (iexact, icontains, istartswith, iendswith) - works the same everywhere.
     - Other lookups: lt, lte, gt, gte (e.g. rating__gte=4), in, isnull.
 
+## Showing database data on a page (view -> template)
+
+    - book_store/urls.py:
+        path("", include("book_outlet.urls"))
+    - book_outlet/urls.py (new):
+        urlpatterns = [path("", views.index)]
+    - book_outlet/views.py:
+        from .models import Book
+
+        def index(request):
+            books = Book.objects.all()
+            return render(request, "book_outlet/index.html", {"books": books})
+      from .models -> "." = this app's folder (relative import).
+    - Templates (namespaced, inside the app):
+        book_outlet/templates/book_outlet/base.html     -> layout with title + content blocks
+        book_outlet/templates/book_outlet/index.html:
+            {% extends "book_outlet/base.html" %}
+            {% block title %}All Books{% endblock %}
+            {% block content %}
+            <ul>
+                {% for book in books %}
+                <li>{{ book.title }} (Rating: {{ book.rating }})</li>
+                {% endfor %}
+            </ul>
+            {% endblock %}
+        book_outlet/templates/book_outlet/book_detail.html -> empty for now
+    - base.html is inside the app here (no project-level templates/ folder),
+      so extends uses the namespaced path "book_outlet/base.html".
+    - Same pattern as the blog project, but the data now comes from the
+      DATABASE (Book.objects.all()) instead of a Python list in views.py.
+    - Lazy QuerySet in action: Book.objects.all() runs no SQL in the view;
+      the query runs when the template's {% for %} loops over books.
+    - http://127.0.0.1:8000/ ->
+        lr (Rating: 4)
+        hp1 (Rating: 5)
+        my struggle (Rating: 2)
+        will_power (Rating: 1)
+
 ## blank vs null
 
 |                  | `null=True`                    | `blank=True`                               |
