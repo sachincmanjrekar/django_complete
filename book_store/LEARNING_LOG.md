@@ -78,6 +78,40 @@
     - Migration files ARE committed to git (they describe the database);
       db.sqlite3 is NOT (it's in .gitignore).
 
+## Inserting data with the Django shell (save)
+
+    - python manage.py shell -> Python shell with the project loaded.
+    - Create a row:
+        >>> from book_outlet.models import Book
+        >>> harry_potter = Book(title="h1", rating=5)
+        >>> harry_potter.save()        # INSERT INTO book_outlet_book ...
+        >>> lord_of_the_rings = Book(title="lr", rating=4)
+        >>> lord_of_the_rings.save()
+    - Book(...) only creates a Python object; save() writes it to the database.
+    - id is filled in automatically: now the table has
+        id 1 -> "h1", rating 5
+        id 2 -> "lr", rating 4
+    - Read them back:
+        >>> Book.objects.all()
+        <QuerySet [<Book: Book object (1)>, <Book: Book object (2)>]>
+
+## __str__ (readable output for a model)
+
+    - Default output "Book object (1)" says nothing about the book.
+    - models.py:
+        class Book(models.Model):
+            title = models.CharField(max_length=50)
+            rating = models.IntegerField()
+
+            def __str__(self):
+                return f"{self.title} ({self.rating})"
+    - Now (restart the shell to load the change):
+        >>> Book.objects.all()
+        <QuerySet [<Book: h1 (5)>, <Book: lr (4)>]>
+    - __str__ is a normal Python method, NOT a field -> no new column,
+      no makemigrations needed.
+    - Also used later by the admin site and anywhere the object is printed.
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
