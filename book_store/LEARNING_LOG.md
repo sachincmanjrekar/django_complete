@@ -993,6 +993,63 @@
 
 ![Admin: Author with this Address already exists](screenshots/one-to-one-admin-unique-error.png)
 
+## Many-to-many relationship: ManyToManyField (Book <-> Country)
+
+    - A book can be published in MANY countries, a country has MANY books.
+    - models.py:
+        class Country(models.Model):
+            name = models.CharField(max_length=80)
+            code = models.CharField(max_length=2)
+
+        class Book(models.Model):
+            ...
+            published_countries = models.ManyToManyField(Country)
+    - No on_delete (deleting a country just removes its links), and no
+      null=True needed (an empty list = no countries).
+    - makemigrations -> 0011_country_alter_address_options_and_more.py:
+        CreateModel Country + AlterModelOptions address (the Meta
+        verbose_name_plural from before) + AddField book.published_countries
+    - In the DB there's NO new column on book. Django creates a separate
+      JOIN TABLE with one row per link:
+        book_outlet_book_published_countries (id, book_id, country_id)
+    - Shell - save the country first, then ADD it to the book's manager:
+        >>> from book_outlet.models import Country, Book
+        >>> Book.objects.all()
+        <QuerySet [<Book: Harry potter 1 (5)>, <Book: My Struggle (5)>, <Book: Destroy the lies (3)>]>
+        >>> gm = Country(name="Germany", code="DE")
+        >>> hb = Book.objects.all()[1]
+        >>> hb
+        <Book: My Struggle (5)>
+        >>> gm.save()                         # must have an id before linking
+        >>> hb.published_countries.add(gm)    # writes the join-table row, no hb.save() needed
+      (hb.published_countries = gm -> error, it's not a single value;
+       use .add(), .remove(), .set([...]), .clear())
+    - Reverse side: c1.book_set.all()
+        >>> c1 = Country.objects.all()[0]
+        >>> c1.book.all()
+        AttributeError: 'Country' object has no attribute 'book'
+        >>> c1.books.all()
+        AttributeError: 'Country' object has no attribute 'books'
+        >>> c1.book_set.all()
+        <QuerySet [<Book: My Struggle (5)>]>
+      -> default reverse name is <model>_set. related_name="books" is only on
+         Book.author (so author.books works), NOT on published_countries.
+         For country.books, add related_name="books" to the ManyToManyField.
+    - DB after: country (1, Germany, DE); join table (1, book 2, country 1)
+      = My Struggle published in Germany.
+    - Summary of the three relationships:
+        ForeignKey       one-to-many   book.author      / author.book_set.all()
+        OneToOneField    one-to-one    author.address   / address.author
+        ManyToManyField  many-to-many  book.published_countries.all() / country.book_set.all()
+    - Admin note: without blank=True the Book form will REQUIRE at least one
+      country -> ManyToManyField(Country, blank=True) if it should be optional.
+    - Tried ManyToManyField(Country, null=False) -> Django warns on runserver / check:
+        WARNINGS: book_outlet.Book.published_countries: (fields.W340)
+        null has no effect on ManyToManyField.
+      There's no column on book to be NULL (links live in the join table),
+      so null=... means nothing here; makemigrations: "No changes detected".
+      Only blank=True matters for M2M (admin/form validation).
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
