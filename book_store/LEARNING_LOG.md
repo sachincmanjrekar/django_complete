@@ -911,6 +911,55 @@
                                     now (ForeignKey):    ?author__id__exact=1
         "By rating" filter     -> unchanged, e.g. ?rating=5
 
+## One-to-one relationship: OneToOneField (Author <-> Address)
+
+    - One author has ONE address, one address belongs to ONE author.
+    - models.py (Address defined ABOVE Author, since Author refers to it):
+        class Address(models.Model):
+            street = models.CharField(max_length=80)
+            postal_code = models.CharField(max_length=5)
+            city = models.CharField(max_length=50)
+
+        class Author(models.Model):
+            first_name = models.CharField(max_length=100)
+            last_name = models.CharField(max_length=100)
+            address = models.OneToOneField(Address, on_delete=models.CASCADE, null=True)
+    - null=True -> existing authors (Sachin, Smita) can stay without an address,
+      so migrate needs no default.
+    - makemigrations -> 0010_address_author_address.py (CreateModel Address +
+      AddField author.address), migrate -> applied.
+    - In the DB it's like a ForeignKey but UNIQUE:
+        "address_id" bigint NULL UNIQUE REFERENCES "book_outlet_address" ("id")
+      UNIQUE = two authors can't point to the same address.
+      (ForeignKey = many books -> one author; OneToOne = exactly one each way.)
+    - Shell:
+        >>> from book_outlet.models import Author, Address, Book
+        >>> Author.objects.all()[0].address          # None -> prints nothing
+        >>> adr1 = Address(street="Churchil street", postal_code="567890", city="London")
+        >>> adr2 = Address(street="Gandhi street", postal_code="337890", city="Delhi")
+        >>> adr1.save()
+        >>> adr2.save()
+        >>> jkr = Author.objects.get(first_name="JK")
+        >>> jkr.address = adr1
+        >>> jkr.save()                               # saves address_id=1 on the author
+        >>> jkr.address.street
+        'Churchil street'
+    - Reverse side: NO _set, because there's only one -> lowercase model name:
+        >>> Address.objects.all()[0].author
+        <Author: JK Rowling>
+        >>> Address.objects.all()[0].author.first_name
+        'JK'
+      (an address with no author -> address.author raises Author.DoesNotExist)
+    - Comparison:
+        ForeignKey     book.author        author.book_set.all()  (or related_name)
+        OneToOneField  author.address     address.author         (single object)
+    - DB after: address (1, Churchil street, 567890, London), (2, Gandhi street, 337890, Delhi)
+                author  JK Rowling -> address 1; Sachin, Smita -> NULL
+    - Gotcha: postal_code max_length=5 but I saved "567890" (6 chars). SQLite
+      doesn't enforce varchar length, and .save() skips validation -> it saved.
+      The admin form WOULD reject it ("at most 5 characters").
+      Fix: max_length=6 (Indian PIN codes are 6 digits) + makemigrations.
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
