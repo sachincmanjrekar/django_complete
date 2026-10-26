@@ -1050,6 +1050,39 @@
       so null=... means nothing here; makemigrations: "No changes detected".
       Only blank=True matters for M2M (admin/form validation).
 
+## Many-to-many in the admin (Countries)
+
+    - admin.py:
+        from .models import Book, Author, Address, Country
+        admin.site.register(Country)
+    - models.py - Country gets __str__ and a plural name:
+        class Country(models.Model):
+            ...
+            def __str__(self):
+                return self.name
+
+            class Meta:
+                verbose_name_plural = "Countries"     # default would be "Countrys"
+    - Meta change -> needs makemigrations -> 0012_alter_country_options.py
+      ("Change Meta options on country", no DB change). The admin shows
+      "Countries" even before migrating - Meta is read from the Python code.
+    - Sidebar now: Address Entries | Authors | Books | Countries
+    - Book change page http://127.0.0.1:8000/admin/book_outlet/book/2/change/
+      (My Struggle):
+        Published countries = a MULTI-SELECT list box (not a dropdown):
+          <select name="published_countries" multiple required>
+          Germany shown selected (from the join-table row book 2 <-> country 1)
+          "Hold down Control, or Command on a Mac, to select more than one."
+          + = add a new country right from the book form
+        Compare: Author (ForeignKey) = single dropdown + pencil/+/eye icons.
+    - "required" -> no blank=True, so saving a book with no country selected
+      gives "This field is required." (add blank=True to make it optional).
+    - Nicer widget: in BookAdmin
+        filter_horizontal = ("published_countries",)
+      -> two boxes (available / chosen) with arrows instead of Ctrl-click.
+
+![Admin: book form with Published countries multi-select](screenshots/many-to-many-admin-book-form.png)
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
