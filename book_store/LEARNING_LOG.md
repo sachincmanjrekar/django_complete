@@ -960,6 +960,39 @@
       The admin form WOULD reject it ("at most 5 characters").
       Fix: max_length=6 (Indian PIN codes are 6 digits) + makemigrations.
 
+## One-to-one in the admin (Address Entries)
+
+    - admin.py:
+        from .models import Book, Author, Address
+        admin.site.register(Address)
+    - models.py - Address gets __str__ and a Meta class:
+        class Address(models.Model):
+            ...
+            def __str__(self):
+                return f"{self.street} , {self.city}, {self.postal_code}"
+
+            class Meta:
+                verbose_name_plural = "Address Entries"
+    - class Meta = settings ABOUT the model (not a field). verbose_name_plural
+      changes the name in the admin sidebar: default would be "Addresss"
+      (Django just adds an "s") -> now "Address Entries".
+      Other Meta options: verbose_name, ordering = ["city"], db_table.
+    - Meta changes are recorded in migrations too (no DB change):
+        makemigrations -> 0011_alter_address_options.py  "Change Meta options on address"
+    - __str__ is what the Author form's address dropdown shows:
+        - Select an option -
+        Churchil street , London, 567890
+        Gandhi street , Delhi, 337890
+      (+ pencil = edit, + = add new address, eye = view, right next to it)
+    - Admin URLs: /admin/book_outlet/author/   /admin/book_outlet/address/
+    - One-to-one rule in action: gave Smita S the London address that
+      JK Rowling already has -> form refuses:
+        "Author with this Address already exists."
+      because address_id is UNIQUE. Each address can belong to only one author
+      -> pick Gandhi street (free) or add a new address with the "+".
+
+![Admin: Author with this Address already exists](screenshots/one-to-one-admin-unique-error.png)
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
