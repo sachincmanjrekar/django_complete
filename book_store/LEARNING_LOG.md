@@ -1083,6 +1083,39 @@
 
 ![Admin: book form with Published countries multi-select](screenshots/many-to-many-admin-book-form.png)
 
+## Circular relations & lazy relations (model name as a string)
+
+    - Problem: a relation field needs the other model, but Python reads the
+      file top to bottom -> that's why I had to put Address and Country ABOVE
+      Author and Book. Some cases can't be solved by reordering.
+    - Solution = "lazy" relation: give the model NAME as a STRING; Django
+      resolves it later, after all models are loaded.
+    - 1) Two models that point at each other (circular):
+        class Product(models.Model):
+            last_buyer = models.ForeignKey('User', on_delete=models.SET_NULL, null=True)
+
+        class User(models.Model):
+            created_products = models.ManyToManyField('Product')
+      Whichever comes first can't reference the other as a class -> use 'User'.
+    - 2) Relation with the SAME model -> 'self':
+        class User(models.Model):
+            friends = models.ManyToManyField('self')
+      (e.g. a comment's parent: ForeignKey('self', null=True, on_delete=...))
+    - 3) Model from ANOTHER app (mine, built-in or third-party) ->
+       '<app_label>.<ModelName>':
+        class Review(models.Model):
+            product = models.ForeignKey('store.Product', on_delete=models.CASCADE)
+      Built-in example: Django's user model = 'auth.User'
+      (best practice: settings.AUTH_USER_MODEL instead of the hard-coded name).
+    - In my project the string form would also have worked without reordering:
+        author = models.ForeignKey("Author", on_delete=models.CASCADE, ...)
+      Migrations already store it that way: to='book_outlet.author'.
+    - Note: the course snippet leaves out on_delete, but ForeignKey REQUIRES it
+      (TypeError: ForeignKey.__init__() missing 1 required positional
+      argument: 'on_delete').
+
+## Section 8 complete (Relationships: one-to-many, one-to-one, many-to-many)
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
@@ -1096,6 +1129,14 @@
     - Django admin docs (ModelAdmin options: list_display, list_filter,
       prepopulated_fields, search_fields...):
         https://docs.djangoproject.com/en/6.0/ref/contrib/admin/
+    - Section 8 code snapshots = branches starting with "relationships-...", e.g.:
+        https://github.com/academind/django-practical-guide-course-code/tree/relationships-01-adding-one-to-many
+    - Section 8 module slides:
+        https://github.com/academind/django-practical-guide-course-code/tree/relationships-zz-extra-files/slides
+    - Lazy relationships (model name as string, 'self', 'app.Model') docs:
+        https://docs.djangoproject.com/en/6.0/ref/models/fields/#lazy-relationships
+    - Relationship field reference (ForeignKey, OneToOneField, ManyToManyField):
+        https://docs.djangoproject.com/en/6.0/ref/models/fields/#module-django.db.models.fields.related
     - SQL vs NoSQL databases (Academind article):
         https://academind.com/articles/sql-vs-nosql
     - Django docs:
