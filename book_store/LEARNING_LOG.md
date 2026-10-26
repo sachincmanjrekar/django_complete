@@ -877,6 +877,40 @@
         Book.objects.filter(author__last_name="Rowling")   filter across it
     - Mine: first_name is "JK" (no dots) -> Author.objects.get(first_name="JK").
 
+## Author in the admin + full_name() / __str__
+
+    - models.py - a helper method, reused by __str__:
+        class Author(models.Model):
+            ...
+            def full_name(self):
+                return f"{self.first_name} {self.last_name}"
+
+            def __str__(self):
+                return self.full_name()
+    - admin.py:
+        from .models import Book, Author
+        admin.site.register(Author)
+    - Methods don't change the DB -> makemigrations says "No changes detected".
+    - Now everywhere shows the name instead of "Author object (1)":
+        shell:            <QuerySet [<Author: JK Rowling>, <Author: Sachin M>, <Author: Smita S>]>
+        Book list admin:  Author column = JK Rowling, Sachin M, Smita S
+        Book form:        author dropdown lists names (+ a "+" to add a new author)
+        detail page:      <h2>JK Rowling</h2>   ({{ author }} -> __str__)
+    - Added through the admin:
+        authors: (1, JK Rowling), (2, Sachin M), (3, Smita S)
+        books:   Harry potter 1 (5, bestseller) -> JK Rowling
+                 My Struggle (5)               -> Sachin M
+                 Destroy the lies (3)          -> Smita S
+    - full_name() can also be used directly: book.author.full_name(),
+      or in a template: {{ book.author.full_name }} (no parentheses in DTL).
+    - Book list page http://127.0.0.1:8000/admin/book_outlet/book/ after the change:
+        Title | Author columns -> Author column shows __str__ (JK Rowling, ...)
+        "By author" filter     -> lists Author objects by __str__, and now
+                                  filters by the author's ID, not the text:
+                                    before (CharField):  ?author=JK
+                                    now (ForeignKey):    ?author__id__exact=1
+        "By rating" filter     -> unchanged, e.g. ?rating=5
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
