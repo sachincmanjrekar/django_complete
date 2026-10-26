@@ -745,6 +745,54 @@
       (MaxValueValidator was imported but not used.)
       Fixing it = another AlterField -> makemigrations + migrate again.
 
+## Section 8: Relationships - one-to-many with ForeignKey
+
+    - New model Author, and Book.author changed from text to a ForeignKey:
+        class Author(models.Model):
+            first_name = models.CharField(max_length=100)
+            last_name = models.CharField(max_length=100)
+
+        class Book(models.Model):
+            ...
+            author = models.ForeignKey(Author, on_delete=models.CASCADE, null=True)
+    - One-to-many: one Author can have MANY books, each Book has ONE author.
+      The ForeignKey goes on the "many" side (Book).
+    - Author must be defined ABOVE Book (or use the string "Author") because
+      Python reads the file top to bottom.
+    - In the DB the column is book_outlet_book.author_id, storing the Author's id
+      (not the name). book.author -> Author object, book.author_id -> the number.
+    - on_delete = what happens to the books when their author is deleted:
+        models.CASCADE    delete the books too
+        models.PROTECT    refuse to delete the author while books point to it
+        models.SET_NULL   set author to NULL (needs null=True)
+        models.SET_DEFAULT / models.DO_NOTHING
+    - makemigrations -> 0008_author_alter_book_author.py:
+        CreateModel Author + AlterField book.author (CharField -> ForeignKey)
+    - Gotcha before migrate: existing books still have TEXT in author
+      ('Kaiser', 'JK', 'sachin', 'Nanee', 'Hitler'). Converting that column into
+      author_id fails the foreign key check, because no Author has id 'Kaiser':
+        IntegrityError: ... book_outlet_book.author_id contains a value 'Kaiser'
+        that does not have a corresponding value in book_outlet_author.id
+      Fix: delete the old books first, then migrate, then re-add them with
+      real Author rows.
+    - What actually happened: python .\manage.py migrate
+        Applying book_outlet.0008_author_alter_book_author... Traceback ...
+      -> the migration runs in a transaction, so on error it is ROLLED BACK:
+         0008 still [ ] in showmigrations, no book_outlet_author table,
+         the 5 books unchanged. Nothing broken - fix the data, migrate again.
+    - Deleting the old books in the shell worked with the normal ORM:
+        >>> from book_outlet.models import Book
+        >>> Book.objects.all().delete()
+        (5, {'book_outlet.Book': 5})      # (total deleted, per model)
+      (it's a plain DELETE FROM book_outlet_book, no columns read, so the
+      not-yet-existing author_id column didn't matter)
+    - Then migrate succeeded:
+        Applying book_outlet.0008_author_alter_book_author... OK
+      DB now: book_outlet_book columns id, title, rating, is_bestselling, slug,
+      author_id (old author text column gone) + new empty book_outlet_author table.
+    - After that: register Author in admin.py (admin.site.register(Author)),
+      add authors, re-add books and pick the author from the dropdown.
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
