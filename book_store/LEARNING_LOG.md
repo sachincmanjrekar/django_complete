@@ -793,6 +793,90 @@
     - After that: register Author in admin.py (admin.site.register(Author)),
       add authors, re-add books and pick the author from the dropdown.
 
+## Creating related rows in the shell (ForeignKey)
+
+    - python .\manage.py shell
+        >>> from book_outlet.models import Book, Author
+        >>> jkr = Author(first_name="JK", last_name="Rowling")
+        >>> jkr.save()
+        >>> Author.objects.all()
+        <QuerySet [<Author: Author object (1)>]>
+        >>> hp1 = Book(title="Harry potter 1", rating=5, is_bestselling=True,
+        ...            slug="harry-potter-1", author=jkr)
+        >>> hp1.save()
+    - Save the Author FIRST: it needs an id before a Book can point to it
+      (an unsaved author -> ValueError: save() prohibited ... unsaved related object).
+    - author=jkr -> pass the Author OBJECT; Django stores its id in author_id.
+      (author_id=1 also works.)
+    - Slug given by hand here because save() no longer creates it
+      (only the admin's prepopulated_fields does).
+    - DB after:
+        book_outlet_author: (1, 'JK', 'Rowling')
+        book_outlet_book:   (1, 'Harry potter 1', 5, True, 'harry-potter-1', author_id=1)
+    - "Author object (1)" -> Author has no __str__ yet. Add one:
+        def __str__(self):
+            return f"{self.first_name} {self.last_name}"
+    - Following the relation:
+        hp1.author              -> the Author object
+        hp1.author.last_name    -> 'Rowling'
+        hp1.author_id           -> 1
+
+## Querying across a ForeignKey (author__last_name)
+
+    - Forward: from a book to its author -> plain dot access
+        >>> harrypotter = Book.objects.get(title="Harry Potter 1")
+        >>> harrypotter.author
+        <Author: Author object (1)>
+        >>> harrypotter.author.first_name
+        'J.K.'
+        >>> harrypotter.author.last_name
+        'Rowling'
+    - Filter books by a field of the RELATED model -> double underscore:
+        >>> books_by_rowling = Book.objects.filter(author__last_name="Rowling")
+        >>> books_by_rowling
+        <QuerySet [<Book: Harry Potter 1 (5)>]>
+      author__last_name = "go into author, then use its last_name"
+      (Django does the SQL JOIN for you).
+    - Chain a lookup on the end too: relation__field__lookup
+        >>> Book.objects.filter(author__last_name__contains="wling")
+        <QuerySet [<Book: Harry Potter 1 (5)>]>
+      Same lookups as before: __contains, __icontains, __gte, __lt, ...
+    - Careful: my title is "Harry potter 1" (small p), the course uses
+      "Harry Potter 1". get(title=...) is an exact match -> use mine, or
+      title__iexact="harry potter 1".
+
+## Reverse relation: author.book_set
+
+    - Backward: from an author to ALL their books. Author has no field for
+      books, but Django adds one automatically: <lowercase model name>_set
+        >>> jkr = Author.objects.get(first_name="J.K.")
+        >>> jkr.book_set
+        <...RelatedManager object at 0x7fbc181f8ac0>
+        >>> jkr.book_set.all()
+        <QuerySet [<Book: Harry Potter 1 (5)>]>
+    - jkr.book_set is a MANAGER (like Book.objects), not the books themselves
+      -> call .all(), .filter(...), .count(), etc. on it:
+        jkr.book_set.filter(rating__gt=3)
+        jkr.book_set.count()
+    - Rename it with related_name on the ForeignKey:
+        author = models.ForeignKey(Author, on_delete=models.CASCADE,
+                                   null=True, related_name="books")
+        -> jkr.books.all()   (book_set no longer exists; needs makemigrations)
+    - Did it: models.py
+        author = models.ForeignKey(Author, on_delete=models.CASCADE, null=True,
+                                   related_name="books")
+      makemigrations -> 0009_alter_book_author.py (AlterField, related_name='books')
+      migrate -> applied. The DB table doesn't change (related_name is
+      Python-side only), but Django still records it in a migration.
+        >>> jkr.books.all()
+        <QuerySet [<Book: Harry potter 1 (5)>]>
+        >>> jkr.book_set        -> AttributeError (old name is gone)
+    - Summary for one-to-many:
+        book.author             forward  -> one Author
+        author.book_set.all()   backward -> many Books
+        Book.objects.filter(author__last_name="Rowling")   filter across it
+    - Mine: first_name is "JK" (no dots) -> Author.objects.get(first_name="JK").
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
