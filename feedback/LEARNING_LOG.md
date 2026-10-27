@@ -433,6 +433,35 @@
     - Elements tab is also where I can delete maxlength="10" to test the
       server-side "Your name is too long." message.
 
+## Styling the form + error state (static CSS)
+
+    - New file reviews/static/reviews/styles.css (app static folder,
+      namespaced with the app name like templates).
+    - review.html:
+        {% load static %}
+        ...
+        <title>Your Review</title>
+        <link rel="stylesheet" href="{% static 'reviews/styles.css' %}">
+      -> renders href="/static/reviews/styles.css"
+      (python manage.py findstatic reviews/styles.css -> shows where
+       Django finds it; DEBUG = True -> runserver serves it)
+    - Main CSS rules:
+        form                       white card, centered, rounded, shadow
+        button / button:hover      purple #1f0050 -> #320777, pointer cursor
+        .form-control label        bold, on its own line (display: block)
+        .form-control input:focus  purple border, light purple background
+        .errorlist                 no bullets, dark red text
+        .errors input              red border, pink background
+        .errors label              red
+      .errors only matches when the div got the "errors" class from
+        {% if form.user_name.errors %} errors {% endif %}
+      -> invalid submit = whole field turns red, valid = normal.
+    - Mistake: <link rel="stylesheet" href="{% static 'reviews/styles.css' %}"
+      had no closing > -> the browser read "</head" as part of the link tag.
+      CSS may still load (browsers are forgiving) but the HTML is broken.
+      Fixed: ...styles.css' %}">
+    - After CSS changes: Ctrl+F5 / Empty Cache and Hard Reload.
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
