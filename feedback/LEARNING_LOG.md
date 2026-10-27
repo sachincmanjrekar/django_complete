@@ -556,6 +556,46 @@
       review made in the shell/admin could have any rating.
       -> ModelForm: build the form FROM the model, define fields once (next).
 
+## ModelForm: the form built from the model
+
+    - forms.py (old forms.Form version kept as comments):
+        from django import forms
+        from .models import Review
+
+        class ReviewForm(forms.ModelForm):
+            class Meta:
+                model = Review
+                fields = '__all__'          # or ['user_name', 'rating'], or exclude = [...]
+                labels = {"user_name": "Your Name",
+                          "review_text": "Your Feedback",
+                          "rating": "Your Rating"}
+                error_messages = {"user_name": {"required": "Please enter your valid name.",
+                                                "max_length": "Your name is too long."}}
+    - class Meta = settings for the form (like Meta on a model). Fields are
+      NOT written again - Django creates them from the model fields:
+        CharField(max_length=10)  -> <input type="text" maxlength="10">
+        TextField()               -> <textarea>  (no widget= needed)
+        IntegerField()            -> <input type="number">
+    - labels / error_messages / widgets in Meta are dicts keyed by field name.
+    - views.py - the form saves itself:
+        if form.is_valid():
+            form.save()             # creates the Review from cleaned_data + INSERT
+            return HttpResponseRedirect("/thank-you")
+      and `from .models import Review` is no longer needed in views.py.
+    - Mistake on the way: deleted the Review(...) lines but kept review.save() ->
+        AttributeError: 'function' object has no attribute 'save'
+      "review" was now the VIEW FUNCTION itself (def review(request)) - the
+      only thing left with that name. Fixed with form.save().
+    - Tested: valid POST -> 1 new row ('Test', 'Nice', 5) + 302 /thank-you
+      (rolled back afterwards); empty name -> "Please enter your valid name.".
+    - LOST in the switch - a ModelForm only knows the model's rules:
+        rating 1-5      (was min_value/max_value on the form) -> 9 accepted!
+        feedback <=200  (was max_length=200 on the form)      -> no limit
+      Fix = put the rules on the MODEL (also protects admin/shell), then
+      makemigrations + migrate:
+        review_text = models.TextField(max_length=200)
+        rating = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
