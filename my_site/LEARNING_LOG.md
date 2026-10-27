@@ -494,6 +494,50 @@
     - Post has no __str__ yet -> shell / dropdowns show "Post object (1)".
       The list page doesn't care because list_display shows the title column.
 
+## Views use the database instead of the hard-coded list
+
+    - Deleted the whole all_posts = [ {...}, {...}, {...} ] list (~65 lines)
+      and the date import from blog/views.py.
+    - blog/views.py now:
+        from django.shortcuts import render, get_object_or_404
+        from .models import Post
+
+        def starting_page(request):
+            latest_posts = Post.objects.all().order_by("-date")[:3]
+            return render(request, "blog/index.html", {"posts": latest_posts})
+
+        def posts(request):
+            all_posts = Post.objects.all().order_by("-date")
+            return render(request, "blog/all-posts.html", {"all_posts": all_posts})
+
+        def post_detail(request, slug):
+            identified_post = get_object_or_404(Post, slug=slug)
+            return render(request, "blog/post_detail.html", {"post": identified_post})
+    - Before vs now:
+        sorted(all_posts, key=get_date)[-3:]   -> order_by("-date")[:3]
+           ("-date" = newest first; [:3] on a QuerySet = SQL LIMIT 3,
+            the database does the sorting and cutting)
+        next((p for p in all_posts if ...), None) + raise Http404()
+                                               -> get_object_or_404(Post, slug=slug)
+    - Templates: dict key "image" became the model field image_name:
+        {% static 'blog/images/'|add:post.image_name %}
+      in includes/post.html and post_detail.html. Everything else
+      (post.title, post.excerpt, post.slug, post.content, post.date) has the
+      same name in the model, so the templates didn't change.
+      {{ post.author }} -> Author.__str__ -> "By Sachin Manjrekar".
+    - Checked:
+        /                               3 latest posts, images ok
+        /posts/                         all 3 posts
+        /posts/hike-in-the-mountains/   detail, "By Sachin Manjrekar", 27 Oct 2026
+        /posts/programming-is-fun/      ok
+        /posts/nature-at-its-best/      ok
+        /posts/into-the-woods/          404 - the old hard-coded slug; the DB
+                                        post got slug nature-at-its-best
+    - All 3 posts have the same date (auto_now = the day saved in the admin),
+      so "-date" ordering can't tell them apart.
+    - Leftovers now unused in views.py: def get_date(post) and
+      from django.http import Http404 -> can be deleted.
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
