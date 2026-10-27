@@ -265,14 +265,76 @@
         required                    <- CharField is required by default ->
                                        browser blocks an empty Submit itself
     - Not handled yet: the view ignores request.method -> submitting just
-      shows an empty form again (200, no redirect). Next step:
+      shows an empty form again (200, no redirect). Next step below.
+
+## Validating with the Form: is_valid() and cleaned_data
+
+    - views.py:
+        def review(request):
+            if request.method == "POST":
+                form = ReviewForm(request.POST)       # "bound" form: has data
+
+                if form.is_valid():
+                    print("clean data received:", form.cleaned_data)
+                    return HttpResponseRedirect("/thank-you")
+                else:
+                    print("clean data not received")
+            else:
+                form = ReviewForm()                   # "unbound" form: empty
+
+            return render(request, "reviews/review.html", {"form": form})
+    - form.is_valid()   runs every field's checks (required, max_length, ...)
+      form.cleaned_data dict of checked + converted values, ONLY after is_valid():
+                          {'user_name': 'Sachin'}
+      form.errors        what went wrong, per field
+    - Invalid POST -> render the SAME bound form -> {{ form }} shows the error
+      AND keeps the typed value:
+        <ul class="errorlist" id="id_user_name_error"><li>This field is required.</li></ul>
+    - My first version - BUG:
         if request.method == "POST":
             form = ReviewForm(request.POST)
             if form.is_valid():
-                print(form.cleaned_data)
+                ...
                 return HttpResponseRedirect("/thank-you")
-        else:
-            form = ReviewForm()
+
+        form = ReviewForm()        # ran after an INVALID POST too
+        # print(form.cleaned_data)
+      -> the bound form (with errors) was overwritten by an empty one:
+         no error message, input empty. Fix = create the empty form only
+         in the else (GET) branch.
+      (print(form.cleaned_data) on an empty form -> AttributeError:
+       cleaned_data only exists after is_valid().)
+    - Spaces only "   " -> CharField strips it -> "" -> "This field is
+      required." (the browser's `required` check doesn't catch spaces).
+
+## Spaces stay in the input after an error -> strip before binding
+
+    - Problem: after typing "   " the error showed, but the box came back as
+      value="   " -> had to backspace. A re-rendered form shows the RAW
+      submitted data, not cleaned_data (normally good: you don't retype a
+      long value because of one mistake).
+    - Fix in views.py - strip before creating the form:
+        if request.method == "POST":
+            data = request.POST.copy()                              # request.POST can't be edited
+            data["user_name"] = data.get("user_name", "").strip()   # "   " -> ""
+            form = ReviewForm(data)
+    - Tested:
+        "   "         -> 200, "This field is required.", input EMPTY
+        "  Sachin  "  -> {'user_name': 'Sachin'} -> 302 /thank-you
+        "Sachin"      -> 302 /thank-you
+    - Downside: one line per field. For many fields, strip everything once
+      in a base form class instead:
+        class StrippedForm(forms.Form):
+            def __init__(self, data=None, *args, **kwargs):
+                if data is not None:
+                    data = data.copy()
+                    for key in data:
+                        data.setlist(key, [value.strip() for value in data.getlist(key)])
+                super().__init__(data, *args, **kwargs)
+
+        class ReviewForm(StrippedForm):
+            user_name = forms.CharField()
+      (getlist/setlist keep multi-value fields like checkboxes working)
 
 ## Helpful resources
 
