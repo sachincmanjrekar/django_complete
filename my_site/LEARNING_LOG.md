@@ -538,6 +538,72 @@
     - Leftovers now unused in views.py: def get_date(post) and
       from django.http import Http404 -> can be deleted.
 
+## Author name as an email link (mailto:)
+
+    - post_detail.html - following the relation post -> author -> email_address:
+        <address>By <a href="mailto:{{ post.author.email_address }}">{{ post.author }}</a></address>
+      rendered: <a href="mailto:scmanjrekar@test.com">Sachin Manjrekar</a>
+      click -> opens the email app with the author's address filled in.
+    - post-detail.css:
+        #summary a {
+          color: white;
+          text-decoration: none;
+        }
+    - Mistakes on the way:
+        <a href ="{{ post.author.email_address }}">{{ post.author }}</address>
+        1) no </a> -> unclosed link, invalid HTML
+        2) no mailto: -> the browser treats the email as a RELATIVE URL:
+           /posts/hike-in-the-mountains/scmanjrekar@test.com -> 404
+      href kinds: "https://..." (other site), "/posts/" (this site),
+                  "mailto:x@y.com" (email), "tel:+91..." (phone)
+    - After fixing, the browser still went to the 404 page
+      (posts/nature-at-its-best/scmanjrekar@test.com) -> it was the OLD page
+      still open in the tab. Ctrl+F5 (hard reload) -> link works.
+      Template changes need a page reload; the server already had the fix.
+
+## Showing a post's tags (many-to-many in a template)
+
+    - views.py - pass the tags separately:
+        def post_detail(request, slug):
+            identified_post = get_object_or_404(Post, slug=slug)
+            return render(request, "blog/post_detail.html", {
+                "post": identified_post,
+                "post_tags": identified_post.tags.all()
+            })
+    - Why not just post.tags in the template? post.tags is a MANAGER, not a
+      list. {% for tag in post.tags.all %} also works in DTL (no parentheses),
+      but the course passes the QuerySet from the view.
+    - post_detail.html (above the <article>):
+        <div>
+            {% for tag in post_tags %}
+            <span class="tag">{{ tag }}</span>
+            {% endfor %}
+        </div>
+      {{ tag }} -> Tag.__str__ -> caption. Rendered for nature-at-its-best:
+        <span class="tag">Featured</span>
+    - post-detail.css:
+        #summary h2 { ... margin-bottom: 0.25rem; }
+        .tag {
+          background-color: white;
+          color: #390281;
+          padding: 0.5rem 1rem;
+          border: 8px;
+        }
+      Note: "border: 8px" alone draws nothing (no style like solid) - for
+      rounded corners it should be border-radius: 8px.
+
+## Browser cache: CSS changes not showing
+
+    - Changed CSS but the page looks the same -> browser is using the OLD
+      cached .css file.
+    - Fix: open DevTools (F12 / right-click > Inspect), then RIGHT-CLICK the
+      browser's reload button -> "Empty Cache and Hard Reload".
+      (Only shows while DevTools is open.)
+    - Lighter options: Ctrl+F5 / Ctrl+Shift+R (hard reload), or in DevTools
+      Network tab tick "Disable cache" (works while DevTools stays open).
+
+## Section 9 complete (Blog project: data & models)
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
@@ -549,6 +615,10 @@
         https://github.com/academind/django-practical-guide-course-code/tree/prj-urls-views-templates-zz-extra-files
     - Example snapshot (first lesson of this section):
         https://github.com/academind/django-practical-guide-course-code/tree/prj-urls-views-templates-01-adding-urls-and-views
+    - Section 9 code snapshots = branches starting with "prj-data-models-...", e.g.:
+        https://github.com/academind/django-practical-guide-course-code/tree/prj-data-models-01-added-models-and-relations
+    - Section 9 module slides:
+        https://github.com/academind/django-practical-guide-course-code/tree/prj-data-models-zz-extra-files/slides
     - Path converters (str, int, slug, uuid, path) in URLs:
         https://docs.djangoproject.com/en/3.1/topics/http/urls/#path-converters
     - PEP 8 (Python style guide):
