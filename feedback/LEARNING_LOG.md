@@ -336,6 +336,40 @@
             user_name = forms.CharField()
       (getlist/setlist keep multi-value fields like checkboxes working)
 
+## Field options: label, max_length, error_messages
+
+    - forms.py:
+        class ReviewForm(forms.Form):
+            user_name = forms.CharField(label="Your Name",
+                                        max_length=10,
+                                        error_messages={"required": "Please enter your name.",
+                                                        "max_length": "Your name is too long."})
+    - label="Your Name"   replaces the automatic "User name:" -> "Your Name:"
+      max_length=10       server check in is_valid() + Django adds
+                          maxlength="10" to the <input>
+      error_messages      own text per error type, keys = error codes
+                          ("required", "max_length", "invalid", ...)
+    - Rendered input: <input type="text" name="user_name" maxlength="10" required id="id_user_name">
+    - Tested:
+        "   "               -> 200, "Please enter your name."
+        "Sachin"            -> 302 /thank-you
+        "Sachin Manjrekar"  -> 200, "Your name is too long." (16 chars, value kept)
+    - In the browser I can't even type an 11th character (maxlength). The
+      server message only shows when someone sends the POST directly
+      (DevTools: delete maxlength, curl/Postman/script).
+    - Three layers:
+
+| Layer | Stops | Can be bypassed? |
+|---|---|---|
+| Browser `maxlength="10"` / `required` | normal users typing | yes: DevTools, scripts |
+| CSRF check | POSTs not coming from my own page | only with a valid token |
+| `form.is_valid()` on the server | everything: too long, empty, ... | no |
+
+      -> browser checks = convenience, server checks = real protection.
+      A direct POST with a valid CSRF token but a 16-char name gets 200 +
+      "Your name is too long.", no redirect, nothing used/saved.
+      Without a valid token -> 403 before the view even runs.
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
