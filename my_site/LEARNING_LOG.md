@@ -421,6 +421,39 @@
     - Next: makemigrations -> blog/migrations/0001_initial.py
       (+ Create model Author, + Create model Tag, + Create model Post), then migrate.
 
+## First migrate in my_site + superuser + admin
+
+    - This project had NEVER been migrated (section 5 had no models), so the
+      first migrate applied Django's built-in apps too:
+        python .\manage.py makemigrations
+          blog\migrations\0001_initial.py
+            + Create model Author / + Create model Tag / + Create model Post
+        python .\manage.py migrate
+          Applying contenttypes.0001_initial... OK
+          Applying auth.0001_initial ... auth.0012 ... OK
+          Applying admin.0001-0003 ... OK
+          Applying blog.0001_initial... OK
+          Applying sessions.0001_initial... OK
+      -> db.sqlite3 now has the admin/auth/session tables + blog tables:
+         blog_author, blog_tag, blog_post, blog_post_tags (M2M join table)
+    - python manage.py createsuperuser -> username admin, admin@test.com
+        The password is too similar to the username.
+        This password is too short. It must contain at least 8 characters.
+        This password is too common.
+        Bypass password validation and create user anyway? [y/N]: y
+      Fine for local learning; never for a real site.
+    - runserver -> http://127.0.0.1:8000/admin/
+        GET /admin/                     302  -> not logged in, redirect to login
+        GET /admin/login/?next=/admin/  200  login page
+        POST /admin/login/...           302  login OK -> back to /admin/
+        GET /admin/                     200  dashboard
+      BLOG section: Authors | Posts | Tags
+    - Add post form fields: title, excerpt, image_name, slug, content,
+      author (dropdown), tags (multi-select).
+      NO date field: auto_now=True makes it non-editable, Django fills it in.
+    - Still to do: __str__ on the models (otherwise "Post object (1)" etc.),
+      and a Tag/Author must exist before picking one (or use the green +).
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
