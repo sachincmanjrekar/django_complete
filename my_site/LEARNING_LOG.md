@@ -454,6 +454,46 @@
     - Still to do: __str__ on the models (otherwise "Post object (1)" etc.),
       and a Tag/Author must exist before picking one (or use the green +).
 
+## Blog admin config: __str__ + PostAdmin
+
+    - models.py:
+        class Tag(models.Model):
+            ...
+            def __str__(self):
+                return self.caption
+
+        class Author(models.Model):
+            ...
+            def full_name(self):
+                return f"{self.first_name} {self.last_name}"
+
+            def __str__(self):
+                return self.full_name()
+      (methods only -> makemigrations: "No changes detected")
+    - admin.py:
+        class PostAdmin(admin.ModelAdmin):
+            list_filter = ("author", "tags", "date")
+            list_display = ("title", "author", "date")
+            prepopulated_fields = {"slug": ("title",)}
+
+        admin.site.register(Post, PostAdmin)
+        admin.site.register(Author)
+        admin.site.register(Tag)
+    - Posts list: columns Title | Author | Date, filter sidebar
+      By author / By tags / By date. A DateField filter gets ready-made
+      choices: Any date, Today, Past 7 days, This month, This year.
+      Filtering by "tags" works across the many-to-many too.
+    - Add post: slug fills in from the title as you type (prepopulated_fields).
+    - Data added in the admin (the 3 posts that used to be hard-coded in views.py):
+        author: Sachin Manjrekar
+        tags:   Featured, Settings, Hot
+        posts:  1 Mountain Hiking        mountains.jpg  hike-in-the-mountains  tag Hot
+                2 Programming Is Great!  coding.jpg     programming-is-fun     tag Settings
+                3 Nature At Its Best     woods.jpg      nature-at-its-best     tag Featured
+        date = 2026-10-27 for all (auto_now -> the day they were saved)
+    - Post has no __str__ yet -> shell / dropdowns show "Post object (1)".
+      The list page doesn't care because list_display shows the title column.
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
