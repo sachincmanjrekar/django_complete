@@ -499,6 +499,30 @@
           an error (the "one line per field" problem) -> StrippedForm idea.
         - label "your Feedback" - lowercase y vs "Your Name" / "Your Rating".
 
+## Looping over the form's fields ({% for field in form %})
+
+    - review.html - the 3 copied blocks replaced by one loop:
+        {% for field in form %}
+        <div class="form-control {% if field.errors %} errors {% endif %}">
+            {{ field.label_tag }}
+            {{ field }}
+            {{ field.errors }}
+        </div>
+        {% endfor %}
+    - Looping over a form gives each field ("bound field") in the ORDER they
+      are defined in forms.py: user_name, review_text, rating.
+      field.label_tag / field / field.errors = same parts as
+      form.user_name.label_tag etc., just generic.
+    - New fields added to ReviewForm show up automatically - no template change.
+      Still my own wrapper HTML (unlike {{ form }}), so styling stays in my hands.
+    - Tested:
+        GET                -> 3 form-control blocks: Your Name / your Feedback / Your Rating
+        POST rating = 9    -> only the rating div gets "errors":
+                              "Ensure this value is less than or equal to 5."
+        valid POST         -> 302 /thank-you
+    - Same to-dos as before: textarea CSS, strip spaces in all fields,
+      "your Feedback" capital Y.
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
