@@ -231,6 +231,49 @@
     - thank_you() passes {"has_error": False}, but thank_you.html never
       uses has_error -> not needed there.
 
+## Django Form class (forms.py) + {{ form }}
+
+    - New file reviews/forms.py (convention: forms live next to views/models):
+        from django import forms
+
+        class ReviewForm(forms.Form):
+            user_name = forms.CharField()
+      Like a model: a class with fields - but it describes a FORM (inputs +
+      validation), not a database table. No migration.
+    - views.py (old manual POST code commented out for now):
+        from .forms import ReviewForm
+
+        def review(request):
+            form = ReviewForm()
+            return render(request, "reviews/review.html", {"form": form})
+    - review.html - the hand-written label/input/error replaced by one tag:
+        <form action="/" method="POST">
+            {% csrf_token %}
+            {{ form }}
+            <button type="submit">Submit</button>
+        </form>
+    - {{ form }} renders:
+        <div>
+            <label for="id_user_name">User name:</label>
+            <input type="text" name="user_name" required id="id_user_name">
+        </div>
+      Generated from the field:
+        label        "User name:"   <- field name, _ -> space, capitalised
+        name=        "user_name"    <- field name (so request.POST["user_name"],
+                                       not "username" like before)
+        id / for     "id_user_name" <- "id_" + field name, linked automatically
+        required                    <- CharField is required by default ->
+                                       browser blocks an empty Submit itself
+    - Not handled yet: the view ignores request.method -> submitting just
+      shows an empty form again (200, no redirect). Next step:
+        if request.method == "POST":
+            form = ReviewForm(request.POST)
+            if form.is_valid():
+                print(form.cleaned_data)
+                return HttpResponseRedirect("/thank-you")
+        else:
+            form = ReviewForm()
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
