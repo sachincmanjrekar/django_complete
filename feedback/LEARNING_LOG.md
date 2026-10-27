@@ -523,6 +523,39 @@
     - Same to-dos as before: textarea CSS, strip spaces in all fields,
       "your Feedback" capital Y.
 
+## Saving the form data to the database (Review model)
+
+    - models.py:
+        class Review(models.Model):
+            user_name = models.CharField(max_length=10)
+            review_text = models.TextField()
+            rating = models.IntegerField()
+    - makemigrations -> reviews/migrations/0001_initial.py (CreateModel Review),
+      migrate -> table reviews_review. This was the project's first migrate,
+      so Django's built-in apps (auth, admin, sessions, ...) were applied too
+      (19 migrations in total).
+    - views.py:
+        from .models import Review
+        ...
+        if form.is_valid():
+            review = Review(user_name=form.cleaned_data['user_name'],
+                            review_text=form.cleaned_data['review_text'],
+                            rating=form.cleaned_data['rating'])
+            review.save()
+            return HttpResponseRedirect("/thank-you")
+    - Flow: form checks the input -> cleaned_data (already stripped, rating
+      already an int) -> copied into a model object -> save() = INSERT.
+    - DB after my test submit:
+        reviews_review: (1, 'Sachin', 'good mate', 3)
+    - Checked: a valid POST -> 302 /thank-you + exactly 1 new row, rating
+      stored as the number 5. (Tested inside a transaction and rolled back,
+      so my data stayed at 1 review.)
+    - Duplication: form and model both describe the same 3 fields and limits
+      (max_length=10 twice). The 1-5 rating rule is ONLY in the form - the
+      model's IntegerField has no MinValueValidator/MaxValueValidator, so a
+      review made in the shell/admin could have any rating.
+      -> ModelForm: build the form FROM the model, define fields once (next).
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
