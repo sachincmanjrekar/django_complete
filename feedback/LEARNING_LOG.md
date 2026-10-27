@@ -596,6 +596,47 @@
         review_text = models.TextField(max_length=200)
         rating = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
 
+## Class-based view: ReviewView(View) with get() and post()
+
+    - views.py - the review function became a class:
+        from django.views import View
+
+        class ReviewView(View):
+            def get(self, request):
+                form = ReviewForm()
+                return render(request, "reviews/review.html", {"form": form})
+
+            def post(self, request):
+                data = request.POST.copy()
+                data["user_name"] = data.get("user_name", "").strip()
+                form = ReviewForm(data)
+
+                if form.is_valid():
+                    form.save()
+                    return HttpResponseRedirect("/thank-you")
+                else:
+                    print("clean data not received")
+                    return render(request, "reviews/review.html", {"form": form})
+    - urls.py:
+        path("", views.ReviewView.as_view()),
+      URLs need a FUNCTION -> .as_view() turns the class into one.
+    - No more `if request.method == "POST":` - Django calls the method named
+      after the request: GET -> get(), POST -> post(). Any other method
+      (PUT, DELETE, ...) -> 405 Method Not Allowed automatically.
+      self = the view object, request is passed in like before.
+    - Mistake: post() had no return in the else branch ->
+        ValueError: The view reviews.views.view didn't return an HttpResponse
+        object. It returned None instead.
+      In the old function, an invalid form fell through to the shared
+      `return render(...)` at the bottom - in the class each method needs its
+      OWN return. Every Django view must return a response.
+      Fixed: render the bound form (with its errors) in the else branch.
+    - Tested: GET 200 / valid POST saved + 302 /thank-you /
+      invalid POST 200 "Please enter your valid name."
+    - This is the BASE View class. Generic class-based views come next:
+      TemplateView, FormView, CreateView, ListView, DetailView... - they do
+      the common steps (render template, validate form, save, redirect) for you.
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
