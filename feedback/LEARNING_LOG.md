@@ -370,6 +370,69 @@
       "Your name is too long.", no redirect, nothing used/saved.
       Without a valid token -> 403 before the view even runs.
 
+## Rendering form fields by hand (instead of {{ form }})
+
+    - review.html:
+        <form action="/" method="POST">
+            {% csrf_token %}
+            <div class="form-control {% if form.user_name.errors %} errors {% endif %}">
+                {{ form.user_name.label_tag }}
+                {{ form.user_name }}
+                {{ form.user_name.errors }}
+            </div>
+            <br>
+            <button type="submit">Submit</button>
+        </form>
+    - Each piece of one field:
+        form.user_name.label_tag  -> <label for="id_user_name">Your Name:</label>
+        form.user_name            -> <input type="text" name="user_name" ...>
+        form.user_name.errors     -> <ul class="errorlist">...</ul> (empty if none)
+      -> full control over the HTML around each field (wrapper div, classes,
+         order) - {{ form }} decides all of that itself.
+    - {% if form.user_name.errors %} errors {% endif %} adds a CSS class ONLY
+      when the field has an error -> lets CSS style the invalid field.
+    - forms.py: required message changed to "Please enter your valid name."
+    - Rendered on GET:
+        <div class="form-control ">
+            <label for="id_user_name">Your Name:</label>
+            <input type="text" name="user_name" maxlength="10" required id="id_user_name">
+        </div>
+      Rendered after an invalid POST ("   "):
+        <div class="form-control  errors ">
+            <label for="id_user_name">Your Name:</label>
+            <input type="text" name="user_name" maxlength="10" required
+                   aria-invalid="true" aria-describedby="id_user_name_error" id="id_user_name">
+            <ul class="errorlist" id="id_user_name_error"><li>Please enter your valid name.</li></ul>
+        </div>
+      Differences: "errors" class on the div, aria-invalid / aria-describedby
+      on the input (for screen readers), and the errorlist <ul>.
+    - No CSS linked yet -> the errors class has no visible effect so far.
+    - Spaces inside {% if %} ... {% endif %} -> double spaces in class="".
+      Harmless; {% if form.user_name.errors %}errors{% endif %} is tidier.
+
+## Inspecting the rendered HTML in the browser
+
+    - Django sends plain HTML - template tags are gone by then. To see what
+      it actually produced:
+        Right-click the page > View page source (Ctrl+U)
+          -> the HTML exactly as the server sent it (read-only).
+        Right-click an element > Inspect (F12 / Ctrl+Shift+I) > Elements tab
+          -> the live page; hover a line to highlight it, can edit to try
+             things out (changes vanish on reload).
+    - To compare the two states:
+        1) open http://127.0.0.1:8000/, Inspect the input -> div is
+           class="form-control", no errorlist
+        2) submit only spaces -> Inspect again -> div is
+           class="form-control errors", errorlist <ul> below the input,
+           input has aria-invalid="true"
+    - Network tab (F12 > Network) shows the requests:
+        POST /            -> 200 (invalid, form shown again)
+        POST / -> 302 + GET /thank-you   (valid)
+      Click the POST -> Payload tab shows what was sent:
+        csrfmiddlewaretoken, user_name
+    - Elements tab is also where I can delete maxlength="10" to test the
+      server-side "Your name is too long." message.
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
