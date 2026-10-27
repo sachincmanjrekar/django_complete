@@ -52,6 +52,47 @@
       0 migrations applied -> runserver warns about unapplied migrations
       until python manage.py migrate.
 
+## GET vs POST requests
+
+    - Changed the form to POST:
+        <form method="POST">
+            ...
+            <button type="submit">Send</button>
+        </form>
+      (type="submit" is already the default for a <button> inside a form,
+       writing it just makes it clear.)
+    - GET vs POST:
+
+| | GET | POST |
+|---|---|---|
+| Used for | loading/reading a page, search, filters | sending data to SAVE or change something |
+| Data goes | in the URL: `/?username=Sachin` | in the request BODY (not visible in the URL) |
+| In Django | `request.GET["username"]` | `request.POST["username"]` |
+| Bookmark / share / back button | yes | no (browser asks "resubmit form?") |
+| Size limit | URL length | practically none (files too) |
+| CSRF token needed | no | yes, `{% csrf_token %}` |
+| Default for `<form>` | yes | `method="POST"` |
+
+    - In the view: request.method is "GET" or "POST" - the same view handles
+      both (show the empty form on GET, process the data on POST):
+        def review(request):
+            if request.method == "POST":
+                entered_username = request.POST["username"]
+                ...
+            return render(request, "reviews/review.html")
+    - Submitting the POST form WITHOUT a token ->
+        403 Forbidden
+        CSRF verification failed. Request aborted.
+        (terminal: Forbidden (CSRF cookie not set.): /)
+      CSRF = Cross-Site Request Forgery: another website could make YOUR
+      browser send a POST to this site while you're logged in. Django blocks
+      every POST that doesn't carry the secret token it gave the page.
+      Fix - inside the form:
+        <form method="POST">
+            {% csrf_token %}
+            ...
+      -> renders <input type="hidden" name="csrfmiddlewaretoken" value="...">.
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
