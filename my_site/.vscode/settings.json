@@ -1,0 +1,5 @@
+{
+    "python.defaultInterpreterPath": "C:\\Python314\\python.exe",
+    "python.languageServer": "Pylance",
+    "python-envs.defaultEnvManager": "ms-python.python:system"
+}

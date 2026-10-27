@@ -358,6 +358,69 @@
 
 ## Section 5 complete (Blog project: URLs, views, templates, static files)
 
+## Section 9 begins (Blog project: data & models)
+
+    - Back in my_site after sections 6-8 in book_store (models, admin,
+      relationships). Goal: replace the hard-coded posts list in
+      blog/views.py with real models + database.
+
+## Blog models: Post, Author, Tag (all 3 relationship ideas together)
+
+    - blog/models.py:
+        from django.db import models
+        from django.core.validators import MinLengthValidator
+
+        class Tag(models.Model):
+            caption = models.CharField(max_length=20)
+
+        class Author(models.Model):
+            first_name = models.CharField(max_length=100)
+            last_name = models.CharField(max_length=100)
+            email_address = models.EmailField()
+
+        class Post(models.Model):
+            title = models.CharField(max_length=200)
+            excerpt = models.CharField(max_length=200)
+            image_name = models.CharField(max_length=200)
+            date = models.DateField(auto_now=True)
+            slug = models.SlugField(unique=True, db_index=True)
+            content = models.TextField(validators=[MinLengthValidator(10)])
+            author = models.ForeignKey(Author, on_delete=models.SET_NULL, related_name="posts")
+            tags = models.ManyToManyField(Tag)
+    - New field types / options:
+        EmailField          CharField that validates "x@y.z" format in forms/admin
+        TextField           long text, no max_length (post body)
+        DateField(auto_now=True)      set to TODAY on every save()
+                                      (auto_now_add=True -> only when created)
+        SlugField(unique=True)        no two posts with the same slug
+                                      (unique already creates an index ->
+                                       db_index=True is extra, harmless)
+        MinLengthValidator(10)        content must be at least 10 chars
+                                      (form/admin validation, like MinValueValidator)
+        image_name          just the file NAME (e.g. "mountains.jpg"), the
+                            image itself stays in static/blog/images
+    - Relationships:
+        Post -> Author   ForeignKey      one author, many posts
+                                         author.posts.all() (related_name)
+        Post <-> Tag     ManyToManyField a post has many tags, a tag many posts
+    - Tag defined ABOVE Post (or use "Tag" as a string - lazy relation).
+    - blog/admin.py:
+        from .models import Post, Author, Tag
+        admin.site.register(Post)
+        admin.site.register(Author)
+        admin.site.register(Tag)
+    - Error (python manage.py check / makemigrations / runserver):
+        SystemCheckError: blog.Post.author: (fields.E320) Field specifies
+        on_delete=SET_NULL, but cannot be null.
+        HINT: Set null=True argument on the field, or change the on_delete rule.
+      SET_NULL = "when the author is deleted, set post.author to NULL" ->
+      the column must ALLOW NULL. Fix:
+        author = models.ForeignKey(Author, on_delete=models.SET_NULL,
+                                   null=True, related_name="posts")
+      -> fixed, check: "System check identified no issues (0 silenced)."
+    - Next: makemigrations -> blog/migrations/0001_initial.py
+      (+ Create model Author, + Create model Tag, + Create model Post), then migrate.
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
