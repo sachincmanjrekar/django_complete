@@ -462,6 +462,43 @@
       Fixed: ...styles.css' %}">
     - After CSS changes: Ctrl+F5 / Empty Cache and Hard Reload.
 
+## More fields: Textarea widget + IntegerField
+
+    - forms.py:
+        review_text = forms.CharField(label="your Feedback",
+                                      widget=forms.Textarea,
+                                      max_length=200)
+        rating = forms.IntegerField(label="Your Rating", min_value=1, max_value=5)
+    - review.html: same block per field (wrapper div + label_tag + field + errors):
+        <div class="form-control {% if form.review_text.errors %} errors {% endif %}">
+            {{ form.review_text.label_tag }}
+            {{ form.review_text }}
+            {{ form.review_text.errors }}
+        </div>
+        (and the same for rating)
+    - widget = which HTML element draws the field. Field type = how the value
+      is validated/converted; widget = how it LOOKS:
+        CharField()                         -> <input type="text">
+        CharField(widget=forms.Textarea)    -> <textarea cols="40" rows="10" maxlength="200">
+        IntegerField(min_value=1, max_value=5)
+                                            -> <input type="number" min="1" max="5">
+                                               (browser arrows, blocks outside 1-5)
+    - Tested:
+        Sachin / "Great" / 4  -> 302 /thank-you
+            cleaned_data = {'user_name': 'Sachin', 'review_text': 'Great', 'rating': 4}
+            -> rating sent as text "4", comes out as the NUMBER 4
+        review "   ", rating 9 -> "This field is required."
+                                  "Ensure this value is less than or equal to 5."
+        rating "abc"           -> "Enter a whole number."
+        only the name          -> "This field is required." x2
+    - To tidy:
+        - CSS targets only "input" (.form-control input, .errors input) ->
+          the <textarea> isn't styled and doesn't turn red on error. Use
+          ".form-control input, .form-control textarea" etc.
+        - views.py strips only user_name -> spaces stay in the textarea after
+          an error (the "one line per field" problem) -> StrippedForm idea.
+        - label "your Feedback" - lowercase y vs "Your Name" / "Your Rating".
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
