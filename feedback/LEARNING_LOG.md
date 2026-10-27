@@ -637,10 +637,24 @@
       TemplateView, FormView, CreateView, ListView, DetailView... - they do
       the common steps (render template, validate form, save, redirect) for you.
 
+## Section 10 complete (Forms)
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
         https://github.com/academind/django-practical-guide-course-code
+    - Section 10 code snapshots = branches starting with "forms-...", e.g.:
+        https://github.com/academind/django-practical-guide-course-code/tree/forms-00-starting-setup
+    - Section 10 module slides:
+        https://github.com/academind/django-practical-guide-course-code/tree/forms-zz-extra-files/slides
+    - ModelForm docs (Meta: model, fields, exclude, labels, widgets, error_messages):
+        https://docs.djangoproject.com/en/6.0/topics/forms/modelforms/
+    - Form fields reference (CharField, IntegerField, options, error codes):
+        https://docs.djangoproject.com/en/6.0/ref/forms/fields/
+    - CSRF protection:
+        https://docs.djangoproject.com/en/6.0/ref/csrf/
+    - Class-based views intro:
+        https://docs.djangoproject.com/en/6.0/topics/class-based-views/intro/
     - Django docs:
         https://docs.djangoproject.com/en/6.0/
     - Working with forms:
