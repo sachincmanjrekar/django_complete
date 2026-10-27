@@ -93,6 +93,28 @@
             ...
       -> renders <input type="hidden" name="csrfmiddlewaretoken" value="...">.
 
+## Added {% csrf_token %} -> POST works
+
+    - review.html:
+        <form method="POST">
+            {% csrf_token %}
+            <label for="username">Your name:</label>
+            <input id="username" name="username" type="text">
+            <button type="submit">Send</button>
+        </form>
+    - Page now contains (see it with right-click > View page source):
+        <input type="hidden" name="csrfmiddlewaretoken" value="6NZqCg2AKjGfwb2E...">
+      hidden = not shown on the page, but sent along with the form.
+    - Flow:
+        GET  /  -> Django sets a csrftoken COOKIE + puts the token in the form
+        POST /  -> browser sends cookie + csrfmiddlewaretoken field
+                -> Django compares them -> match -> 200 (no more 403)
+      Another site can't read the token, so it can't fake the POST.
+    - Rule: EVERY <form method="POST"> in a Django template needs
+      {% csrf_token %} inside the <form> tag. GET forms don't.
+    - The view still doesn't read request.POST, so after Send the same page
+      just shows again (next: handle the data in the view).
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
