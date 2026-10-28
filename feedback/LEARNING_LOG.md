@@ -639,6 +639,46 @@
 
 ## Section 10 complete (Forms)
 
+## Section 11 begins (Class-based views in detail)
+
+    - Same feedback project. Starting point: ReviewView(View) with get()/post()
+      and a function view thank_you. Next: generic class-based views
+      (TemplateView, ListView, DetailView, FormView, CreateView) that do the
+      usual steps for you.
+
+## Base template: base.html + {% extends %}
+
+    - New reviews/templates/reviews/base.html - the shared page skeleton:
+        {% load static %}
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>{% block title %}{% endblock %}</title>
+            <link rel="stylesheet" href="{% static 'reviews/styles.css' %}">
+        </head>
+        <body>
+            {% block content %}{% endblock %}
+        </body>
+        </html>
+    - review.html / thank_you.html now only fill the blocks:
+        {% extends "reviews/base.html" %}
+        {% block title %}Your Review{% endblock %}       (thank_you: Form submitted)
+        {% block content %} ...form... {% endblock %}    (thank_you: Thank you!)
+    - Both pages get the stylesheet from base.html -> thank-you page is
+      styled now too. {% load static %} is needed in base.html (where
+      {% static %} is used), not in the child templates.
+    - Mistakes - the CSS disappeared after the move:
+        <link rel="stylesheet" href="{% static 'reviews/style.css'}">
+        1) "}" instead of "%}" -> not a template tag at all, Django sent the
+           text unchanged: href="{% static 'reviews/style.css'}"
+        2) style.css instead of styles.css -> after fixing 1) the page asked
+           for /static/reviews/style.css -> 404
+      Fixed: href="{% static 'reviews/styles.css' %}"
+      Tip: python manage.py findstatic reviews/styles.css shows whether a
+      static path exists; view page source shows what the link became.
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
