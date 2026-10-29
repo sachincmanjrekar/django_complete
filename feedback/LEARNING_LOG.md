@@ -1021,6 +1021,23 @@
       the DB has 1 row (id 1 -> sachin_1mWfQCi.jpg). The file is written
       BEFORE the row is inserted, so the first try (likely before migrate,
       no table yet) left a file with no row.
+    - .gitignore (repo root): + uploads/ and temp/ - user uploads don't
+      belong in git.
+
+## ImageField instead of FileField in the model
+
+    - profiles/models.py:
+        class UserProfile(models.Model):
+            image = models.ImageField(upload_to="images")
+    - makemigrations -> 0002_alter_userprofile_image (AlterField), migrate.
+      The DB column stays the same (a path string) - the change is in what
+      Django checks and offers.
+    - ImageField = FileField + Pillow check that the file is an image, and
+      .width / .height on the stored file:
+        1 images/sachin_1mWfQCi.jpg        1962 x 1469
+        2 images/IMG_20260608_092328.jpg   2024 x 1515
+    - Checked: migrations 0001 + 0002 applied; new upload saved as row 2
+      in uploads/images.
 
 ## Helpful resources
 
