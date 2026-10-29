@@ -1039,6 +1039,30 @@
     - Checked: migrations 0001 + 0002 applied; new upload saved as row 2
       in uploads/images.
 
+## CreateView for the upload: no form class, no get()/post()
+
+    - profiles/views.py:
+        from django.views.generic.edit import CreateView
+
+        class CreateProfileView(CreateView):
+            template_name = "profiles/create_profile.html"
+            model = UserProfile
+            fields = "__all__"
+            success_url = "/profiles"
+    - forms.py: ProfileForm removed - CreateView builds a ModelForm from
+      model + fields. The form field is now the model field "image"
+      (<input type="file" name="image" accept="image/*" required>), and
+      the ImageField check comes from the model.
+    - CreateView passes request.FILES to the form by itself and saves the
+      row (file -> uploads/images/, path -> DB), then redirects.
+      create_profile.html didn't change ({{ form }} + enctype is still needed).
+    - Mistake: views.py still had "from .forms import ProfileForm" after the
+      class was deleted -> ImportError, the whole site (and manage.py check)
+      failed to start. Removed the import.
+    - Checked: manage.py check -> no issues; GET /profiles -> 200;
+      PNG upload -> 302 /profiles + a new row (test row and file deleted
+      again); .txt -> 200 + errorlist.
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
