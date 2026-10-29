@@ -775,6 +775,27 @@
         selected_review = get_object_or_404(Review, pk=review_id)
       (DetailView, coming next, does this lookup + 404 for you.)
 
+## ListView: ReviewListView without get_context_data()
+
+    - views.py (+ from django.views.generic import ListView):
+        class ReviewListView(ListView):
+            template_name = "reviews/review_list.html"
+            model = Review
+            context_object_name = "reviews"
+    - model = Review -> ListView runs Review.objects.all() by itself.
+    - Without context_object_name the list is in the template as object_list
+      (and review_list = <model name>_list); context_object_name = "reviews"
+      keeps the old name, so review_list.html didn't change.
+    - template_name could even be dropped: ListView's default is
+      "<app>/<model>_list.html" = "reviews/review_list.html" - same file.
+    - Filtering the list: override get_queryset() (written, commented out):
+        def get_queryset(self):
+            base_query = super().get_queryset()      # Review.objects.all()
+            data = base_query.filter(rating__gte=3)  # rating >= 3
+            return data
+      Turned on, it would hide hamilton (2) and max (2) -> 5 reviews.
+    - Checked: GET /reviews -> 200, same 7 reviews as with the TemplateView.
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
