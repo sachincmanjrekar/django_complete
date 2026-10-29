@@ -679,6 +679,22 @@
       Tip: python manage.py findstatic reviews/styles.css shows whether a
       static path exists; view page source shows what the link became.
 
+## Thank-you page as a class: ThankYouView(View)
+
+    - views.py: function view thank_you replaced by a class (same idea as
+      ReviewView, only a get() because the page is never POSTed to):
+        class ThankYouView(View):
+            def get(self, request):
+                return render(request, "reviews/thank_you.html")
+    - urls.py: path("thank-you", views.ThankYouView.as_view())
+    - The unused {"has_error": False} context is gone.
+    - Checked: GET /thank-you -> 200 "Thank you!", GET / -> 200.
+    - Next step (import already there, commented out):
+        # from django.views.generic.base import TemplateView
+      TemplateView only renders a template, so get() isn't needed at all:
+        class ThankYouView(TemplateView):
+            template_name = "reviews/thank_you.html"
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):

@@ -2,6 +2,7 @@ from django.shortcuts import render
 from django.http import HttpResponseRedirect
 from django.views import View
 from .forms import ReviewForm
+# from django.views.generic.base import TemplateView
 
 class ReviewView(View):
     def get(self, request):
@@ -20,8 +21,10 @@ class ReviewView(View):
             print("clean data not received")
             return render(request, "reviews/review.html", {"form":form})
 
+class ThankYouView(View):
 
-def thank_you(request):
-    return render(request, "reviews/thank_you.html", {"has_error":False})
+    def get(self, request):
+        return render(request, "reviews/thank_you.html")
+
 
 
