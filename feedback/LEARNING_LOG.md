@@ -814,6 +814,34 @@
     - Checked: GET /reviews/1 -> 200 (Sachin / Rating: 3 / good mate),
       GET /reviews/999 -> 404 (was 500 with TemplateView + .get()).
 
+## FormView: ReviewView without get() and post()
+
+    - views.py (+ from django.views.generic.edit import FormView):
+        class ReviewView(FormView):
+            form_class = ReviewForm
+            template_name = "reviews/review.html"
+            success_url = "/thank-you"
+
+            def form_valid(self, form):
+                form.save()
+                return super().form_valid(form)
+      (old get()/post() kept as comments)
+    - What FormView does by itself:
+        GET          -> empty ReviewForm() into the template as "form"
+        POST invalid -> renders the template again with the bound form
+                        (errors + typed values), status 200
+        POST valid   -> calls form_valid(form)
+    - form_valid() is the hook for "what to do with good data": here save
+      it, then super().form_valid() redirects (302) to success_url.
+      Without form.save() the redirect still happens but nothing is stored.
+    - The manual .strip() of user_name is gone - not needed for validation:
+      a form CharField strips by default (strip=True), so "   " -> "" ->
+      "required" error. (The spaces still show in the input after the error,
+      because the form re-renders the raw POST data.)
+    - Checked: GET / -> 200 with the csrf token; POST with empty name ->
+      200 + errorlist; valid POST -> 302 /thank-you and one new row
+      (test row deleted again).
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
