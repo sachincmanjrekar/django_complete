@@ -907,6 +907,29 @@
     - The form has no method/action/csrf yet and post() does nothing -
       that's the next lesson.
 
+## Sending a file with the form: enctype + request.FILES
+
+    - create_profile.html:
+        <form action="/profiles" method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+            <input type="file" name="image" />
+            <button>Upload!</button>
+        </form>
+    - enctype="multipart/form-data" is what makes the browser send the file
+      itself. Without it only the file NAME is sent (in request.POST) and
+      request.FILES stays empty.
+    - name="image" = the key the file arrives under on the server.
+    - profiles/views.py:
+        def post(self, request):
+            request.FILES["image"]           # the uploaded file (UploadedFile)
+            return HttpResponseRedirect("/profiles")
+      Files are in request.FILES, not request.POST. Nothing is saved yet -
+      the file is only read and dropped, then Post/Redirect/Get back to the form.
+    - Checked: POST /profiles with a file -> 302 /profiles.
+    - Open point: POST without choosing a file -> 500
+      MultiValueDictKeyError: 'image' (["image"] raises when the key is
+      missing; request.FILES.get("image") would give None instead).
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
