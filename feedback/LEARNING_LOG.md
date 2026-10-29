@@ -796,6 +796,24 @@
       Turned on, it would hide hamilton (2) and max (2) -> 5 reviews.
     - Checked: GET /reviews -> 200, same 7 reviews as with the TemplateView.
 
+## DetailView: SingleReviewView without get_context_data()
+
+    - views.py (import: from django.views.generic import ListView, DetailView):
+        class SingleReviewView(DetailView):
+            template_name = "reviews/single_review.html"
+            model = Review
+    - urls.py: <int:id> -> <int:pk>
+        path("reviews/<int:pk>", views.SingleReviewView.as_view())
+      DetailView looks the row up by a URL value named pk (or slug) - with
+      <int:id> it wouldn't find the id and raise an AttributeError.
+    - In the template the row is "object" and also the lowercase model name
+      "review" -> single_review.html didn't change.
+    - Default template would be "reviews/review_detail.html", so here
+      template_name is needed (our file is single_review.html).
+    - Fixes the earlier open point: a missing id is now a 404 by itself.
+    - Checked: GET /reviews/1 -> 200 (Sachin / Rating: 3 / good mate),
+      GET /reviews/999 -> 404 (was 500 with TemplateView + .get()).
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
