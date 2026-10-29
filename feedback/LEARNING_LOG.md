@@ -952,6 +952,46 @@
         - only the file is stored - nothing in the DB knows about it
       (Next: FileField / ImageField in a model does the storing for you.)
 
+## A Django form with an ImageField (validating the upload)
+
+    - New profiles/forms.py:
+        from django import forms
+
+        class ProfileForm(forms.Form):
+            user_image = forms.ImageField()
+      (forms.FileField = any file; ImageField = FileField + "is it really
+      an image?" check)
+    - views.py:
+        def get(self, request):
+            form = ProfileForm()
+            return render(request, "profiles/create_profile.html", {"form": form})
+
+        def post(self, request):
+            submitted_form = ProfileForm(request.POST, request.FILES)
+            if submitted_form.is_valid():
+                store_file(request.FILES["user_image"])
+                return HttpResponseRedirect("/profiles")
+            return render(request, "profiles/create_profile.html",
+                          {"form": submitted_form})
+    - create_profile.html: the hand-written <input type="file"> -> {{ form }}
+      Renders: <input type="file" name="user_image" accept="image/*" required ...>
+    - A form with files needs BOTH: ProfileForm(request.POST, request.FILES)
+      - files are never in request.POST.
+    - Mistakes:
+        1) the field is user_image, but the view still read
+           request.FILES["image"] -> MultiValueDictKeyError. The file's key is
+           the form field's name. (submitted_form.cleaned_data["user_image"]
+           works too.)
+        2) ImageField needs the Pillow library to check images - wasn't
+           installed -> fixed with:
+               python -m pip install Pillow      (got Pillow 13.0.0)
+           "python -m pip" makes sure it goes into the same Python that runs
+           manage.py (C:\Python314).
+    - Checked: real PNG -> 302 /profiles, file written to temp/image.jpg;
+      a .txt file -> 200 + "Upload a valid image. The file you uploaded was
+      either not an image or a corrupted image."; empty -> "required" error.
+      (Your own temp/image.jpg was put back after the test.)
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
