@@ -717,6 +717,34 @@
       a missing variable just becomes "").
     - Checked: GET /thank-you -> 200 with "Thank you for your feedback!".
 
+## Review list page: ReviewListView(TemplateView) loads from the DB
+
+    - views.py (+ from .models import Review):
+        class ReviewListView(TemplateView):
+            template_name = "reviews/review_list.html"
+
+            def get_context_data(self, **kwargs):
+                context = super().get_context_data(**kwargs)
+                reviews = Review.objects.all()
+                context["reviews"] = reviews
+                return context
+    - urls.py: path("reviews", views.ReviewListView.as_view())
+    - New reviews/templates/reviews/review_list.html:
+        {% extends "reviews/base.html" %}
+        {% block title %}Review List{% endblock %}
+        {% block content %}
+        <ul>
+            {% for review in reviews %}
+            <li>{{ review.user_name }} (Rating: {{ review.rating }})</li>
+            {% endfor %}
+        </ul>
+        {% endblock %}
+    - get_context_data() isn't only for fixed text - it's where the DB query
+      goes, the result is passed to the template like any other variable.
+    - Checked: GET /reviews -> 200, lists all 7 saved reviews
+      (Sachin 3, vettel 4, hamilton 2, max 2, kimi 3, horner 3, toto 3).
+    - Coming next: ListView does exactly this (query + context) for you.
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
