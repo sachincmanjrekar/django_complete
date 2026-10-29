@@ -930,6 +930,28 @@
       MultiValueDictKeyError: 'image' (["image"] raises when the key is
       missing; request.FILES.get("image") would give None instead).
 
+## Storing the uploaded file on disk (by hand)
+
+    - profiles/views.py:
+        def store_file(file):
+            with open("temp/image.jpg", "wb+") as destination:
+                for chunk in file.chunks():
+                    destination.write(chunk)
+
+        def post(self, request):
+            store_file(request.FILES["image"])
+            return HttpResponseRedirect("/profiles")
+    - "wb+" = write binary (an image isn't text). file.chunks() hands the
+      upload over in pieces, so a big file never has to sit in memory
+      all at once.
+    - Works: uploaded a real picture -> feedback/temp/image.jpg (207,826 bytes).
+    - Limits of this sample:
+        - always the same name -> every upload overwrites the last one
+        - "temp/..." is relative to where runserver is started (feedback/),
+          and the temp folder must already exist, or open() fails
+        - only the file is stored - nothing in the DB knows about it
+      (Next: FileField / ImageField in a model does the storing for you.)
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
