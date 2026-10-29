@@ -745,6 +745,36 @@
       (Sachin 3, vettel 4, hamilton 2, max 2, kimi 3, horner 3, toto 3).
     - Coming next: ListView does exactly this (query + context) for you.
 
+## Single review page: SingleReviewView + <int:id> from the URL
+
+    - urls.py: path("reviews/<int:id>", views.SingleReviewView.as_view())
+    - views.py:
+        class SingleReviewView(TemplateView):
+            template_name = "reviews/single_review.html"
+
+            def get_context_data(self, **kwargs):
+                context = super().get_context_data(**kwargs)
+                review_id = kwargs["id"]
+                selected_review = Review.objects.get(pk=review_id)
+                context["review"] = selected_review
+                return context
+    - The URL value <int:id> arrives in get_context_data() as kwargs["id"]
+      (same name as in the path; <int:...> already turns it into an int).
+    - New reviews/templates/reviews/single_review.html:
+        {% extends "reviews/base.html" %}
+        {% block title %}Single Review{% endblock %}
+        {% block content %}
+        <h1>{{ review.user_name }}</h1>
+        <p>Rating: {{ review.rating }}</p>
+        <p>{{ review.review_text }}</p>
+        {% endblock %}
+    - Checked: GET /reviews/1 -> 200, shows Sachin / Rating: 3 / good mate.
+    - Open point: GET /reviews/999 -> 500, Review.DoesNotExist (.get() raises
+      when no row matches). A missing id should be a 404:
+        from django.shortcuts import get_object_or_404
+        selected_review = get_object_or_404(Review, pk=review_id)
+      (DetailView, coming next, does this lookup + 404 for you.)
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
