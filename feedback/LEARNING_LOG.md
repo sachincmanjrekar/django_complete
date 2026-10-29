@@ -992,6 +992,36 @@
       either not an image or a corrupted image."; empty -> "required" error.
       (Your own temp/image.jpg was put back after the test.)
 
+## Using a model for file storage: FileField + MEDIA_ROOT
+
+    - profiles/models.py:
+        class UserProfile(models.Model):
+            image = models.FileField(upload_to="images")
+    - settings.py:
+        MEDIA_ROOT = BASE_DIR / "uploads"
+      MEDIA_ROOT = the folder for user-uploaded files (static = our own CSS,
+      media = what users upload). upload_to="images" = subfolder inside it.
+    - python manage.py makemigrations -> 0001_initial (UserProfile: id, image)
+      python manage.py migrate
+    - views.py - store_file() is gone, the model does the storing:
+        if submitted_form.is_valid():
+            profile = UserProfile(image=request.FILES["user_image"])
+            profile.save()
+            return HttpResponseRedirect("/profiles")
+    - What save() does:
+        1) writes the file to MEDIA_ROOT/upload_to/<file name>
+           -> feedback/uploads/images/sachin.jpg
+        2) stores only the PATH in the DB column (a varchar), not the file:
+           profile.image.name -> "images/sachin_1mWfQCi.jpg"
+           profile.image.path -> C:\...\feedback\uploads\images\sachin_1mWfQCi.jpg
+    - Same name uploaded again -> Django never overwrites, it adds a random
+      suffix: sachin.jpg, then sachin_1mWfQCi.jpg (the old temp/image.jpg
+      way overwrote every time).
+    - Seen: uploads/images has 2 files (sachin.jpg, sachin_1mWfQCi.jpg) but
+      the DB has 1 row (id 1 -> sachin_1mWfQCi.jpg). The file is written
+      BEFORE the row is inserted, so the first try (likely before migrate,
+      no table yet) left a file with no row.
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
