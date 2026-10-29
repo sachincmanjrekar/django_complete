@@ -1063,6 +1063,63 @@
       PNG upload -> 302 /profiles + a new row (test row and file deleted
       again); .txt -> 200 + errorlist.
 
+## List of uploaded images: ProfilesView(ListView)
+
+    - profiles/views.py:
+        from django.views.generic import ListView
+
+        class ProfilesView(ListView):
+            model = UserProfile
+            template_name = "profiles/user_profiles.html"
+            context_object_name = "profiles"
+    - profiles/urls.py: path("lists", views.ProfilesView.as_view())
+    - New profiles/templates/profiles/user_profiles.html:
+        <ul>
+            {% for profile in profiles %}
+            <li>
+                <img src="{{ profile.image.url }}">
+            </li>
+            {% endfor %}
+        </ul>
+    - Mistakes:
+        1) /profiles/lists -> 404. Django joins URL parts as plain text:
+           "profiles" + "lists" = /profileslists. Fixed in feedback/urls.py:
+               path("profiles/", include("profiles.urls"))
+           -> /profiles/ (upload) and /profiles/lists (list).
+        2) {% for %} without {% endfor %} (and no </li>) -> 500
+           TemplateSyntaxError. Added both.
+
+## Serving uploaded files: MEDIA_URL + static()
+
+    - settings.py:
+        MEDIA_ROOT = BASE_DIR / "uploads"   # where files are stored on disk
+        MEDIA_URL = "/user-media/"          # the URL prefix to load them
+    - feedback/urls.py:
+        from django.conf.urls.static import static
+        from django.conf import settings
+
+        urlpatterns = [
+            ...
+        ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    - static() adds a URL pattern: /user-media/<path> -> the file at
+      MEDIA_ROOT/<path>. Only works while DEBUG = True (a real server like
+      nginx serves media in production).
+    - profile.image.url = MEDIA_URL + stored name:
+        images/sachin_1mWfQCi.jpg -> /user-media/images/sachin_1mWfQCi.jpg
+      Before MEDIA_URL was set it was /images/... and nothing served it -> 404.
+    - Checked: /profiles/lists -> 200 with 3 images, each
+      /user-media/images/... -> 200 image/jpeg.
+    - Open point: create_profile.html still has action="/profiles" (no
+      slash). Since the URL became /profiles/, a POST there -> 500
+      RuntimeError (APPEND_SLASH can't redirect a POST and keep its data).
+      Needs action="/profiles/"; success_url = "/profiles/" too (works now
+      only via a 301 redirect).
+
+## Section 12 complete (File uploads)
+
+    - Still open at the end of the section: the upload form posts to
+      /profiles (500) - change action and success_url to "/profiles/".
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
@@ -1073,6 +1130,14 @@
         https://github.com/academind/django-practical-guide-course-code/tree/forms-zz-extra-files/slides
     - Section 11 code snapshots = branches starting with "class-based-views-...", e.g.:
         https://github.com/academind/django-practical-guide-course-code/tree/class-based-views-01-adding-templates
+    - Section 12 code snapshots = branches starting with "file-upload-...", e.g.:
+        https://github.com/academind/django-practical-guide-course-code/tree/file-upload-00-starting-setup
+    - File uploads docs (request.FILES, chunks(), forms with files):
+        https://docs.djangoproject.com/en/6.0/topics/http/file-uploads/
+    - Managing files (FileField / ImageField, MEDIA_ROOT, .url / .path):
+        https://docs.djangoproject.com/en/6.0/topics/files/
+    - Serving uploaded files during development (static() + MEDIA_URL):
+        https://docs.djangoproject.com/en/6.0/howto/static-files/#serving-files-uploaded-by-a-user-during-development
     - Generic display views (ListView, DetailView):
         https://docs.djangoproject.com/en/6.0/ref/class-based-views/generic-display/
     - Generic editing views (FormView, CreateView, UpdateView, DeleteView):
