@@ -1120,6 +1120,71 @@
     - Still open at the end of the section: the upload form posts to
       /profiles (500) - change action and success_url to "/profiles/".
 
+## Section 13 begins (Sessions)
+
+    - Topic: remembering data per visitor between requests (request.session),
+      stored server-side in the DB and linked to the browser by a cookie.
+
+## Session defaults: 2 weeks
+
+    - Nothing to set up - 'django.contrib.sessions' (INSTALLED_APPS) and
+      SessionMiddleware (MIDDLEWARE) are already in a new project, and the
+      django_session table came with the first migrate.
+    - Defaults (checked in this project):
+        SESSION_COOKIE_AGE = 1209600      # seconds = 60*60*24*14 = 2 weeks
+        SESSION_ENGINE = "django.contrib.sessions.backends.db"   # stored in DB
+        SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+    - The browser only keeps a "sessionid" cookie (a random key); the data
+      itself is in the django_session table (session_key, session_data,
+      expire_date).
+    - Change it in settings.py, e.g. SESSION_COOKIE_AGE = 60 * 60 (1 hour).
+    - Started: single_review.html got a <button>Favorite</button> (not wired
+      up yet) - marking a favorite review is the session example.
+
+## Favorite review: storing and reading a value in request.session
+
+    - single_review.html - button in a POST form, review id hidden:
+        {% if is_favorite %}
+        <p>This review is marked</p>
+        {% else %}
+        <form action="/reviews/favorite" method="POST">
+            {% csrf_token %}
+            <input type="hidden" name="review_id" value="{{ review.id }}">
+            <button>Favorite</button>
+        </form>
+        {% endif %}
+    - reviews/urls.py (before "reviews/<int:pk>"):
+        path("reviews/favorite", views.AddfavoriteView.as_view()),
+    - views.py - WRITE to the session:
+        class AddfavoriteView(View):
+            def post(self, request):
+                review_id = request.POST['review_id']
+                request.session["favorite_review"] = review_id
+                return HttpResponseRedirect("/reviews/" + review_id)
+    - views.py - READ from the session (in the DetailView):
+        def get_context_data(self, **kwargs):
+            context = super().get_context_data(**kwargs)
+            loaded_review = self.object
+            favorite_id = self.request.session.get("favorite_review")
+            context["is_favorite"] = str(loaded_review.id) == favorite_id
+            return context
+      request.session works like a dict; .get() gives None when nothing was
+      stored yet. In class-based views the request is self.request.
+      str(...) because POST values are strings, the model id is an int.
+    - Mistakes:
+        1) request.session["favorite_review"] = fav_review (the Review object)
+           -> TypeError: Object of type Review is not JSON serializable.
+           Session data is saved as JSON -> only simple values (str, int,
+           list, dict). Store the id, load the object again when needed.
+        2) template checked {% if review.favorite %} - no such field, so it
+           was always empty -> the button always showed even though the
+           session was set. Must be the context name: {% if is_favorite %}.
+    - Checked: review 1 shows the button -> POST -> 302 /reviews/1, session
+      {'favorite_review': '1'} -> "This review is marked"; review 2 still
+      has the button. Favoriting 2 moves the mark to 2 (one value, replaced).
+
+## Section 13 complete (Sessions)
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
@@ -1138,6 +1203,12 @@
         https://docs.djangoproject.com/en/6.0/topics/files/
     - Serving uploaded files during development (static() + MEDIA_URL):
         https://docs.djangoproject.com/en/6.0/howto/static-files/#serving-files-uploaded-by-a-user-during-development
+    - Section 13 code snapshots = branches starting with "sessions-...", e.g.:
+        https://github.com/academind/django-practical-guide-course-code/tree/sessions-00-starting-setup
+    - Section 13 module slides:
+        https://github.com/academind/django-practical-guide-course-code/tree/sessions-zz-extra-files/slides
+    - Sessions docs (request.session, SESSION_COOKIE_AGE, what can be stored):
+        https://docs.djangoproject.com/en/6.0/topics/http/sessions/
     - Generic display views (ListView, DetailView):
         https://docs.djangoproject.com/en/6.0/ref/class-based-views/generic-display/
     - Generic editing views (FormView, CreateView, UpdateView, DeleteView):
