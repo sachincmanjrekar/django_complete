@@ -842,6 +842,35 @@
       200 + errorlist; valid POST -> 302 /thank-you and one new row
       (test row deleted again).
 
+## CreateView: ReviewView saves by itself
+
+    - views.py (import: from django.views.generic.edit import CreateView):
+        class ReviewView(CreateView):
+            model = Review
+            form_class = ReviewForm
+            template_name = "reviews/review.html"
+            success_url = "/thank-you"
+      form_valid() and the commented-out get()/post() are gone.
+    - CreateView = FormView + "save a new row": its form_valid() already
+      calls form.save(), then redirects to success_url.
+    - form_class = ReviewForm keeps our labels / error_messages. Without it,
+      CreateView can build a ModelForm from model + fields = "__all__"
+      (default labels and messages then).
+    - Default template would be "reviews/review_form.html" -> template_name
+      is needed for review.html.
+    - Checked: GET / -> 200 with the csrf token; POST with empty name ->
+      200 + errorlist; valid POST -> 302 /thank-you and one new row
+      (test row deleted again).
+    - Generic views used in this section, from little to most built in:
+        View         - write get()/post() yourself
+        TemplateView - renders template_name; extra data via get_context_data()
+        ListView     - + model -> all rows as object_list / context_object_name
+        DetailView   - + model -> one row by <pk>/<slug>, 404 if missing
+        FormView     - GET form, POST validate, form_valid() -> success_url
+        CreateView   - FormView + model -> saves the new row itself
+
+## Section 11 complete (Class-based views)
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
@@ -850,6 +879,12 @@
         https://github.com/academind/django-practical-guide-course-code/tree/forms-00-starting-setup
     - Section 10 module slides:
         https://github.com/academind/django-practical-guide-course-code/tree/forms-zz-extra-files/slides
+    - Section 11 code snapshots = branches starting with "class-based-views-...", e.g.:
+        https://github.com/academind/django-practical-guide-course-code/tree/class-based-views-01-adding-templates
+    - Generic display views (ListView, DetailView):
+        https://docs.djangoproject.com/en/6.0/ref/class-based-views/generic-display/
+    - Generic editing views (FormView, CreateView, UpdateView, DeleteView):
+        https://docs.djangoproject.com/en/6.0/ref/class-based-views/generic-editing/
     - ModelForm docs (Meta: model, fields, exclude, labels, widgets, error_messages):
         https://docs.djangoproject.com/en/6.0/topics/forms/modelforms/
     - Form fields reference (CharField, IntegerField, options, error codes):

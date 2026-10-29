@@ -4,34 +4,16 @@ from django.views import View
 from .forms import ReviewForm
 from django.views.generic.base import TemplateView
 from django.views.generic import ListView, DetailView
-from django.views.generic.edit import FormView
+from django.views.generic.edit import CreateView
 from .models import Review
 
-class ReviewView(FormView):
+class ReviewView(CreateView):
 
+    model = Review
     form_class = ReviewForm
     template_name = "reviews/review.html"
     success_url = "/thank-you"
 
-    def form_valid(self, form):
-        form.save()
-        return super().form_valid(form)
-
-    # def get(self, request):
-    #     form = ReviewForm()
-    #     return render(request, "reviews/review.html", {"form":form})
-    
-    # def post(self, request):
-    #     data = request.POST.copy()                              # request.POST can't be edited, so copy it
-    #     data["user_name"] = data.get("user_name", "").strip()   # "   " -> ""
-    #     form = ReviewForm(data)
-
-    #     if form.is_valid():
-    #         form.save()
-    #         return HttpResponseRedirect("/thank-you")
-    #     else:
-    #         print("clean data not received")
-    #         return render(request, "reviews/review.html", {"form":form})
 
 class ThankYouView(TemplateView):
 
