@@ -871,6 +871,42 @@
 
 ## Section 11 complete (Class-based views)
 
+## Section 12 begins (File uploads)
+
+    - Topic: letting users upload files (e.g. images) through a form,
+      storing them on disk and showing them again.
+
+## Setup: new app "profiles" in the feedback project
+
+    - python manage.py startapp profiles
+    - settings.py INSTALLED_APPS: + 'profiles'
+    - Copied the course starting files (branch file-upload-00-starting-setup,
+      folder profiles/):
+        profiles/views.py:
+            class CreateProfileView(View):
+                def get(self, request):
+                    return render(request, "profiles/create_profile.html")
+                def post(self, request):
+                    pass
+        profiles/urls.py:
+            urlpatterns = [path("", views.CreateProfileView.as_view())]
+        profiles/templates/profiles/create_profile.html:
+            <form>
+              <input type="file" />
+              <button>Upload!</button>
+            </form>
+        profiles/static/profiles/styles.css  (form card + button)
+    - feedback/urls.py:
+        path("", include("reviews.urls")),
+        path("profiles", include("profiles.urls"))
+      "profiles" + the app's "" -> the page is at /profiles (no slash, like
+      /reviews and /thank-you). /profiles/ is a 404 - the course writes
+      "profiles/" which gives /profiles/ instead.
+    - Checked: GET /profiles -> 200, file input + profiles/styles.css;
+      GET / still 200.
+    - The form has no method/action/csrf yet and post() does nothing -
+      that's the next lesson.
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
