@@ -695,6 +695,28 @@
         class ThankYouView(TemplateView):
             template_name = "reviews/thank_you.html"
 
+## TemplateView + get_context_data()
+
+    - ThankYouView now inherits TemplateView - no get() needed, Django renders
+      template_name on GET by itself:
+        from django.views.generic.base import TemplateView
+
+        class ThankYouView(TemplateView):
+            template_name = "reviews/thank_you.html"
+
+            def get_context_data(self, **kwargs):
+                context = super().get_context_data(**kwargs)
+                context["message"] = "Thank you for your feedback!"
+                return context
+    - get_context_data() = the place to add template variables (what used to
+      be the {...} dict in render()). super() gives the base context, add
+      keys, then RETURN it.
+    - thank_you.html: <p>{{ message }}</p> inside the content block.
+    - Mistake: return context was missing -> the method returned None, the
+      template got no "message" and rendered an empty <p></p> (no error,
+      a missing variable just becomes "").
+    - Checked: GET /thank-you -> 200 with "Thank you for your feedback!".
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
