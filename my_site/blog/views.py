@@ -1,11 +1,20 @@
 from django.shortcuts import render, get_object_or_404
 from django.http import Http404
 from .models import Post
-
+from django.views.generic import ListView
 # Create your views here.
 
 def get_date(post):
     return post['date']
+
+
+# class StartingPageView(ListView):
+#     template_name = "blog/index.html"
+#     model = Post
+
+#     def get_queryset(self):
+#         queryset = super().get_queryset()
+#         data = 
 
 
 def starting_page(request):

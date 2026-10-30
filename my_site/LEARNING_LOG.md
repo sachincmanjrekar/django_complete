@@ -604,6 +604,50 @@
 
 ## Section 9 complete (Blog project: data & models)
 
+## Section 14 begins (Course project: forms, files, sessions)
+
+    - Back in the blog project: using what sections 10-13 taught in the
+      feedback project (forms, class-based views, file uploads, sessions).
+
+## Post images are uploads now: image_name -> ImageField
+
+    - blog/models.py:
+        image_name = models.CharField(max_length=200)                  # old
+        image = models.ImageField(upload_to="posts", null=True)        # new
+      null=True so the existing rows could migrate without an image. No
+      blank=True, so the admin still requires one.
+    - Migration 0002_remove_post_image_name_post_image: removes image_name,
+      adds image (the old names in the DB are gone), applied.
+    - my_site/settings.py:
+        MEDIA_ROOT = BASE_DIR / "uploads"   # on disk: my_site/uploads/posts/
+        MEDIA_URL = "/files/"               # in the browser: /files/posts/...
+    - blog/urls.py (the feedback project had this in the project urls.py;
+      works in either):
+        urlpatterns = [
+            ...
+        ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    - includes/post.html and post_detail.html:
+        <img src="{% static 'blog/images/'|add:post.image_name %}" ...>   # old
+        <img src="{{ post.image.url }}" ...>                              # new
+      {% load static %} removed from post.html (not used there any more).
+    - Images uploaded again through the admin: mountains.jpg, coding.jpg and
+      woods.jpg are in uploads/posts/ and were deleted from
+      blog/static/blog/images/.
+    - Static vs uploads: design images stay in static, images added through
+      the site go to uploads.
+        - The header photo on the starting page is a design image:
+          {% static 'blog/images/sachin.jpg' %} ->
+          blog/static/blog/images/sachin.jpg (kept in static).
+    - auto_now on date: saving the posts to add the images gave all of them
+      today's date, so order_by("-date")[:3] now has a tie and a newer post
+      isn't guaranteed a place on the starting page.
+    - Checked: manage.py check -> no issues; /, /posts/ and a post page -> 200;
+      every /files/posts/... image -> 200; findstatic finds
+      blog/images/sachin.jpg. (The test client doesn't serve static files, so
+      the header photo's URL gives a 404 there - check it in the browser.)
+    - Started, commented out in views.py: class StartingPageView(ListView) -
+      get_queryset() isn't finished, the function views still run.
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
