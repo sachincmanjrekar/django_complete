@@ -693,6 +693,40 @@
     - Old function view post_detail removed. Left over in views.py, nothing
       uses them now: get_date, imports render, get_object_or_404, Http404.
 
+## Comment model + CommentForm on the single post page
+
+    - blog/models.py:
+        class Comment(models.Model):
+            user_name = models.CharField(max_length=100)
+            user_email = models.EmailField()
+            text = models.TextField(max_length=400)
+            post = models.ForeignKey(Post, on_delete=models.CASCADE,
+                                     related_name="comments")
+      CASCADE: deleting a post deletes its comments. post.comments.all()
+      gives a post's comments.
+      Migration 0003_comment created and applied.
+    - New blog/forms.py:
+        class CommentForm(forms.ModelForm):
+            class Meta:
+                model = Comment
+                exclude = ["post"]
+                labels = {"user_name": "Your Name", "user_email": "Your Email",
+                          "text": "Your Comment"}
+      exclude = ["post"]: the visitor doesn't choose the post, the view will
+      set it from the page they're on.
+    - views.py, SinglePostView.get_context_data():
+        context["comment_form"] = CommentForm()
+    - post_detail.html, below </main>:
+        <form>
+            {{ comment_form }}
+            <button>Save Comment</button>
+        </form>
+    - Checked: migrations applied; /posts/nature-at-its-best/ -> 200 with
+      the 3 fields.
+    - Not done yet: the form has no method="POST", action or {% csrf_token %},
+      and SinglePostView (DetailView) has no post() -> a POST gives 405, so
+      nothing is saved. Comment isn't registered in the admin either.
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
