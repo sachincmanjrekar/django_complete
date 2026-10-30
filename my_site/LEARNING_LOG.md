@@ -727,6 +727,36 @@
       and SinglePostView (DetailView) has no post() -> a POST gives 405, so
       nothing is saved. Comment isn't registered in the admin either.
 
+## Styling the comment form
+
+    - post_detail.html - fields looped by hand so each gets a wrapper to style:
+        <section id="comment-form">
+            <h2>Your Comment</h2>
+            <form>
+                {% for form_field in comment_form %}
+                <div class="form-control">
+                    {{ form_field.label_tag }}
+                    {{ form_field }}
+                    {{ form_field.errors }}
+                </div>
+                {% endfor %}
+                <button>Save Comment</button>
+            </form>
+        </section>
+    - blog/static/blog/post-detail.css: #comment-form card + button,
+      .form-control label / input / textarea, .errorlist.
+      Also added for later, not on the page yet: #read-later, #comments,
+      #alert, .invalid (needs a class on the wrapper, e.g.
+      form-control {% if form_field.errors %}invalid{% endif %}).
+      .tag: "border: 8px" corrected to "border-radius: 8px".
+    - static/app.css: #main-navigation a got margin-left: 1rem.
+    - Mistakes:
+        1) old </form> and </div> left after the loop -> the form ended before
+           the button, so Save Comment was outside the form.
+        2) {{ from_field.errors }} typo -> no crash (an unknown name is just
+           empty), but errors would never show. Must be form_field.
+    - Checked: /posts/nature-at-its-best/ -> 200, button inside the form.
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
