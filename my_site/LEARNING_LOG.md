@@ -648,6 +648,51 @@
     - Started, commented out in views.py: class StartingPageView(ListView) -
       get_queryset() isn't finished, the function views still run.
 
+## Blog views as classes: ListView and DetailView
+
+    - blog/views.py (from django.views.generic import ListView, DetailView):
+        class StartingPageView(ListView):
+            template_name = "blog/index.html"
+            model = Post
+            ordering = ["-date"]
+            context_object_name = "posts"
+
+            def get_queryset(self):
+                queryset = super().get_queryset()
+                data = queryset[:3]
+                return data
+
+        class AllPostsView(ListView):
+            template_name = "blog/all-posts.html"
+            model = Post
+            ordering = ["-date"]
+            context_object_name = "all_posts"
+
+        class SinglePostView(DetailView):
+            template_name = "blog/post_detail.html"
+            model = Post
+
+            def get_context_data(self, **kwargs):
+                context = super().get_context_data(**kwargs)
+                context["post_tags"] = self.object.tags.all()
+                return context
+    - blog/urls.py (same URLs and names, so {% url %} links didn't change):
+        path('', views.StartingPageView.as_view(), name="starting-page"),
+        path("posts/", views.AllPostsView.as_view(), name="posts-page"),
+        path("posts/<slug:slug>/", views.SinglePostView.as_view(), name="post_detail-page")
+    - ordering = ["-date"] replaces .order_by("-date"). super().get_queryset()
+      already has it applied, then [:3] keeps the latest 3.
+    - context_object_name keeps the names the templates already use (posts,
+      all_posts).
+    - DetailView finds the row by <slug:slug> from the URL (matching the
+      model's slug field) and gives a 404 by itself. The row is in the
+      template as "post" (model name), so post_detail.html didn't change.
+      self.object = the loaded post, so its tags can be added to the context.
+    - Checked: manage.py check -> no issues; / and /posts/ -> 200 with the same
+      posts; all 3 post pages -> 200 with their tags; /posts/nope/ -> 404.
+    - Old function view post_detail removed. Left over in views.py, nothing
+      uses them now: get_date, imports render, get_object_or_404, Http404.
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
