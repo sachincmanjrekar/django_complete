@@ -757,6 +757,62 @@
            empty), but errors would never show. Must be form_field.
     - Checked: /posts/nature-at-its-best/ -> 200, button inside the form.
 
+## Saving comments: SinglePostView(View) with get() and post()
+
+    - DetailView has no post(), so SinglePostView is now a plain View:
+        class SinglePostView(View):
+            def get(self, request, slug):
+                post = Post.objects.get(slug=slug)
+                context = {"post": post, "post_tags": post.tags.all(),
+                           "comment_form": CommentForm()}
+                return render(request, "blog/post_detail.html", context)
+
+            def post(self, request, slug):
+                comment_form = CommentForm(request.POST)
+                post = Post.objects.get(slug=slug)
+
+                if comment_form.is_valid():
+                    comment = comment_form.save(commit=False)
+                    comment.post = post
+                    comment.save()
+                    return HttpResponseRedirect(reverse("post_detail-page", args=[slug]))
+                ...render the page again...
+    - commit=False: builds the Comment without saving it. The form excludes
+      post, so saving straight away would fail (post is required). Set
+      comment.post first, then comment.save().
+    - reverse("post_detail-page", args=[slug]) = the {% url %} tag in Python,
+      turns a URL name into the path.
+    - post_detail.html:
+        <form action="{% url 'post_detail-page' post.slug %}" method='POST'>
+            {% csrf_token %}
+    - Mistake: "post-detail-page" in the template and view, but the name in
+      urls.py is "post_detail-page" -> NoReverseMatch, 500 on every post page,
+      so no comment could be stored. Names must match exactly.
+    - Mistake: the last context used a new CommentForm() -> errors didn't show
+      and the typed text was lost. Fixed: "comment_form": comment_form (the
+      bound form holds both). get() keeps CommentForm(), it wants an empty one.
+    - Checked: comments are stored (3 rows, all on post 2); valid POST ->
+      302 back to the post and one new row; invalid POST -> 200, errors shown
+      and typed text kept (test rows rolled back).
+    - Error alert at the top of post_detail.html, because the form is far
+      down the page and the errors are easy to miss:
+        {% if comment_form.errors %}
+        <div id="alert">
+            <h2>Saving the comment failed</h2>
+            <p>Please check the comment form below the post and fix your errors.</p>
+            <a href="#comment-form">Fix!</a>
+        </div>
+        {% endif %}
+      href="#comment-form" jumps to the element with id="comment-form".
+      Field wrapper: <div class="form-control {% if form_field.errors %} invalid {% endif %}">
+      -> the red .invalid styles apply to that field.
+    - Mistake: {% if comment_form.erros %} typo -> no crash (unknown name is
+      empty), the alert just never showed. Fixed to .errors.
+    - Open points:
+        - /posts/nope/ -> 500 (Post.DoesNotExist), was a 404 with DetailView.
+          get_object_or_404(Post, slug=slug) fixes it. (Leaving this for later.)
+        - Comments aren't shown on the page or registered in the admin yet.
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
