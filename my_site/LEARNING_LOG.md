@@ -811,7 +811,6 @@
     - Open points:
         - /posts/nope/ -> 500 (Post.DoesNotExist), was a 404 with DetailView.
           get_object_or_404(Post, slug=slug) fixes it. (Leaving this for later.)
-        - Comments aren't shown on the page or registered in the admin yet.
 
 ## Outputting the comments on the post page
 
@@ -836,6 +835,28 @@
       jumped to the list, not the form. Fixed: <section id="comments">
       (post-detail.css already has #comments styles). An id is for one
       element only.
+
+## Comments in the admin: CommentAdmin + Post.__str__
+
+    - admin.py:
+        class CommentAdmin(admin.ModelAdmin):
+            list_display = ("user_name", "post")
+
+        admin.site.register(Comment, CommentAdmin)
+    - list_display = the columns on the list page. Without it, the only column
+      is the object's name.
+    - models.py - Post had no __str__, so the post column and the post dropdown
+      would show "Post object (2)":
+        def __str__(self):
+            return self.title
+    - __str__ is plain Python, the table doesn't change -> no migration
+      (makemigrations --check: "No changes detected").
+    - Checked: /admin/blog/comment/ -> 200, shows the 4 comments with post
+      "Programming Is Great!"; the add and change pages -> 200; the post
+      dropdown lists the titles.
+    - Comment has no __str__, so a single comment is still named
+      "Comment object (4)" (e.g. on its change and delete pages). The list
+      isn't affected, list_display sets its columns.
 
 ## Helpful resources
 
