@@ -813,6 +813,30 @@
           get_object_or_404(Post, slug=slug) fixes it. (Leaving this for later.)
         - Comments aren't shown on the page or registered in the admin yet.
 
+## Outputting the comments on the post page
+
+    - views.py - in the context of BOTH get() and post() (post() renders the
+      page again after an invalid comment, so it needs them too):
+        "comments": post.comments.all().order_by("-id")
+      post.comments = related_name="comments" on the ForeignKey -> only this
+      post's comments. "-id" = newest first (Comment has no date field).
+    - post_detail.html, above the form:
+        <ul>
+            {% for comment in comments %}
+            <li>
+                <h2>{{ comment.user_name }}</h2>
+                <p>{{ comment.text|linebreaks }}</p>
+            </li>
+            {% endfor %}
+        </ul>
+    - Checked: "Programming Is Great!" -> 200, shows its 4 comments, also after
+      an invalid POST; the other 2 posts -> 200 with 0 comments.
+    - Mistake: the list's section also had id="comment-form", so the id was on
+      the page twice: the list got the form's card style and the "Fix!" link
+      jumped to the list, not the form. Fixed: <section id="comments">
+      (post-detail.css already has #comments styles). An id is for one
+      element only.
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
