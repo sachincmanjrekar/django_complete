@@ -858,6 +858,73 @@
       "Comment object (4)" (e.g. on its change and delete pages). The list
       isn't affected, list_display sets its columns.
 
+## Moving the media route to the main urls.py
+
+    - static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) went from
+      blog/urls.py to my_site/urls.py, with its two imports.
+    - It only worked in blog/urls.py because the blog is included at ''. With
+      path('blog/', include('blog.urls')) the route would be /blog/files/...,
+      but post.image.url still gives /files/... -> every image 404s.
+    - Media settings are project-wide, so the route belongs with the project.
+    - static() adds no routes when DEBUG is off, so the check needs DEBUG on.
+    - Checked: the 3 images -> 200 image/jpeg at the same /files/posts/... URLs.
+
+## Managing Read Later via the session
+
+    - urls.py:
+        path("read-later", views.ReadLaterView.as_view(), name="read-later"),
+    - post_detail.html - own form, so it doesn't reach SinglePostView.post():
+        <form action="{% url 'read-later' %}" method="POST">
+            {% csrf_token %}
+            <input type="hidden" value="{{ post.id }}" name="post_id">
+            <button>Read Later</button>
+        </form>
+      type="hidden" = sent with the form, but not shown on the page.
+    - views.py:
+        class ReadLaterView(View):
+            def get(self, request):
+                stored_posts = request.session.get("stored_posts")
+                context = {}
+                if stored_posts is None or len(stored_posts) == 0:
+                    context["posts"] = []
+                    context["has_posts"] = False
+                else:
+                    posts = Post.objects.filter(id__in=stored_posts)
+                    context["posts"] = posts
+                    context["has_posts"] = True
+                return render(request, "blog/stored-posts.html", context)
+
+            def post(self, request):
+                stored_posts = request.session.get("stored_posts")
+                if stored_posts is None:
+                    stored_posts = []
+                post_id = int(request.POST["post_id"])
+                if post_id not in stored_posts:
+                    stored_posts.append(post_id)
+                    request.session["stored_posts"] = stored_posts
+                return HttpResponseRedirect("/")
+    - Session stores ids, not Post objects (JSON only, same as section 13).
+    - session.get() -> None the first time, session["x"] would be a KeyError.
+    - int(): POST values are strings. Without it, "1" and 1 don't match, so
+      the "not in" check would miss duplicates.
+    - Assign the list back to the session: append() alone changes the list, but
+      the session doesn't know it changed, so it wouldn't be saved.
+    - id__in=stored_posts -> all posts whose id is in the list. An id with no
+      post (deleted later) is just skipped, no error.
+    - stored-posts.html: {% if not has_posts %} shows the empty message, and
+      each post links to its page. base.html nav: "Stored Posts" link.
+    - Mistake: {% url in "post_detail-page" post.slug %} -> the first word is
+      the URL name, so "in" was read as an empty variable: "Reverse for ''
+      not found". Only crashed once a post was saved, because the for loop
+      doesn't run on an empty list. Removed the "in".
+    - Checked: no saved posts -> 200 with the message; saving -> 302 to /;
+      saving the same post twice keeps one id; 2 saved posts -> listed with
+      links; a new visitor has their own empty list (test rows rolled back).
+    - Open points:
+        - No way to remove a saved post, and the button always says Read Later.
+        - stored-posts.html loads no CSS of its own yet.
+        - /read-later has no trailing slash, unlike posts/.
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
