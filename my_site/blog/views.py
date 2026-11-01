@@ -7,9 +7,6 @@ from .forms import CommentForm
 from django.views import View
 # Create your views here.
 
-def get_date(post):
-    return post['date']
-
 
 class StartingPageView(ListView):
     template_name = "blog/index.html"
@@ -41,7 +38,7 @@ class SinglePostView(View):
         return is_saved_for_later
 
     def get(self,request,slug):
-        post = Post.objects.get(slug=slug)
+        post = get_object_or_404(Post, slug=slug)
 
         context = {
             "post":post,
@@ -55,7 +52,7 @@ class SinglePostView(View):
     
     def post(self, request, slug):
         comment_form = CommentForm(request.POST)
-        post = Post.objects.get(slug=slug)
+        post = get_object_or_404(Post, slug=slug)
 
         if comment_form.is_valid():
             comment = comment_form.save(commit=False)

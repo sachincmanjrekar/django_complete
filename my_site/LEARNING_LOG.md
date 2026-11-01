@@ -810,7 +810,7 @@
       empty), the alert just never showed. Fixed to .errors.
     - Open points:
         - /posts/nope/ -> 500 (Post.DoesNotExist), was a 404 with DetailView.
-          get_object_or_404(Post, slug=slug) fixes it. (Leaving this for later.)
+          get_object_or_404(Post, slug=slug) fixes it. (Fixed before deploying.)
 
 ## Outputting the comments on the post page
 
@@ -921,7 +921,7 @@
       saving the same post twice keeps one id; 2 saved posts -> listed with
       links; a new visitor has their own empty list (test rows rolled back).
     - Open points:
-        - /read-later has no trailing slash, unlike posts/.
+        - /read-later has no trailing slash, unlike posts/. (Fixed before deploying.)
 
 ## Read Later page styling (stored-posts.css)
 
@@ -981,6 +981,26 @@
       the empty message (test rows rolled back).
 
 ## Section 14 complete (Course project: forms, files, sessions)
+
+## Section 15 begins (Deployment)
+
+## Fixes before deploying
+
+    - views.py - a wrong slug is a 404 now, not a 500, in get() and post():
+        post = get_object_or_404(Post, slug=slug)
+      Post.objects.get() raises Post.DoesNotExist, and nothing catches it.
+    - urls.py - trailing slash, same as posts/:
+        path("read-later/", views.ReadLaterView.as_view(), name="read-later"),
+      Links use {% url %}, so they updated by themselves. APPEND_SLASH sends
+      /read-later to /read-later/ with a 301.
+    - views.py - removed get_date, left over from the old list of post dicts.
+    - models.py - a comment has a real name in the admin:
+        def __str__(self):
+            return f"{self.user_name} on {self.post}"
+      Plain Python again -> no migration.
+    - Checked: GET and POST /posts/nope/ -> 404; with DEBUG off it uses
+      templates/404.html; Read Later save, list and remove still work on
+      /read-later/; a valid comment is still saved (test rows rolled back).
 
 ## Helpful resources
 
