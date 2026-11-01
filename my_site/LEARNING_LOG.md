@@ -921,7 +921,6 @@
       saving the same post twice keeps one id; 2 saved posts -> listed with
       links; a new visitor has their own empty list (test rows rolled back).
     - Open points:
-        - No way to remove a saved post, and the button always says Read Later.
         - /read-later has no trailing slash, unlike posts/.
 
 ## Read Later page styling (stored-posts.css)
@@ -943,6 +942,46 @@
     - Checked: findstatic finds the CSS; /read-later -> 200 with the link tag,
       both with no saved posts (message) and with a saved post (link to its page).
 
+## Read Later button: save or remove
+
+    - views.py - SinglePostView gets a helper method. Not a route, get() and
+      post() call it with self:
+        def is_stored_post(self, request, post_id):
+            stored_posts = request.session.get("stored_posts")
+            if stored_posts is not None:
+                is_saved_for_later = post_id in stored_posts
+            else:
+                is_saved_for_later = False
+
+            return is_saved_for_later
+    - In the context of BOTH get() and post() (an invalid comment renders the
+      page again, and the button must keep the right label):
+        "saved_for_later": self.is_stored_post(request, post.id)
+    - post_detail.html:
+        <button>
+            {% if saved_for_later %}
+                Remove from "Read Later" List
+            {% else %}
+                Read Later
+            {% endif %}
+        </button>
+    - ReadLaterView.post() now toggles. The assignment moved out of the if, so
+      a removal gets saved too:
+        if post_id not in stored_posts:
+            stored_posts.append(post_id)
+        else:
+            stored_posts.remove(post_id)
+        request.session["stored_posts"] = stored_posts
+    - Mistake: a <button> inside the <button>. Buttons can't be nested, so the
+      browser closes the first one when it reaches the second -> an empty extra
+      button. Removed the outer pair.
+    - Checked: new visitor -> "Read Later"; save -> session [1], label "Remove
+      from..."; another post keeps "Read Later"; invalid comment keeps the
+      label; click again -> session [], back to "Read Later"; /read-later ->
+      the empty message (test rows rolled back).
+
+## Section 14 complete (Course project: forms, files, sessions)
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
@@ -958,6 +997,8 @@
         https://github.com/academind/django-practical-guide-course-code/tree/prj-data-models-01-added-models-and-relations
     - Section 9 module slides:
         https://github.com/academind/django-practical-guide-course-code/tree/prj-data-models-zz-extra-files/slides
+    - Section 14 code snapshots = branches starting with "prj-blog-uploads-sessions-...", e.g.:
+        https://github.com/academind/django-practical-guide-course-code/tree/prj-blog-uploads-sessions-01-serving-uploaded-files/
     - Path converters (str, int, slug, uuid, path) in URLs:
         https://docs.djangoproject.com/en/3.1/topics/http/urls/#path-converters
     - PEP 8 (Python style guide):
