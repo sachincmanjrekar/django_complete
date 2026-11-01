@@ -922,8 +922,26 @@
       links; a new visitor has their own empty list (test rows rolled back).
     - Open points:
         - No way to remove a saved post, and the button always says Read Later.
-        - stored-posts.html loads no CSS of its own yet.
         - /read-later has no trailing slash, unlike posts/.
+
+## Read Later page styling (stored-posts.css)
+
+    - stored-posts.html loads its own CSS:
+        {% load static %}
+        {% block css_files %}
+        <link rel="stylesheet" href="{% static 'blog/stored-posts.css' %}">
+        {% endblock %}
+      and the section gets an id for the CSS: <section id="stored-posts">
+    - blog/static/blog/stored-posts.css:
+        - #main-navigation: same purple bar as all-posts.css and post-detail.css.
+        - #stored-posts: white centered card (max-width: 30rem).
+        - #stored-posts ul: list-style: none, no margin or padding.
+        - #stored-posts a: display: block + padding -> the whole row is clickable,
+          not just the text. width: 100% stays inside the card because app.css
+          has box-sizing: border-box (padding counts inside the width).
+        - a:hover: grey background.
+    - Checked: findstatic finds the CSS; /read-later -> 200 with the link tag,
+      both with no saved posts (message) and with a saved post (link to its page).
 
 ## Helpful resources
 
