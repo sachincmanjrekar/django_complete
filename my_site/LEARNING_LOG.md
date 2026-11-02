@@ -1425,6 +1425,11 @@
        - Source = a security group instead of an IP: keeps working when the
          EB server's IP changes. My IP can change after a router restart ->
          update that rule then.
+         It happened a few hours later: runserver -> "OperationalError:
+         connection timeout expired" again. My public IP had changed (only
+         the last part), so the "My IP" rule no longer matched. Fix: Edit
+         inbound rules -> that PostgreSQL rule -> Source: My IP again -> Save.
+         (Check the current IP: https://checkip.amazonaws.com)
        - Never 0.0.0.0/0 for the database (whole internet).
     5. python manage.py migrate -> all migrations OK (admin, auth, blog,
        contenttypes, sessions). The tables now exist in RDS Postgres.
@@ -1495,6 +1500,291 @@
       there. Not fixed, moved on to approach 3.
 
 ![nginx 413 Request Entity Too Large for a 2 MB image upload](screenshots/eb-nginx-413-upload-too-large.png)
+
+## Serving static files and uploads via S3 (approach 3)
+
+    - S3 (Simple Storage Service) = AWS file storage. Files go into a
+      "bucket" and are served from S3's own servers, not from the EB server.
+      Approach 3 from the slide: a dedicated service for static files and
+      uploads.
+    1. S3 -> Create bucket.
+    2. Uncheck "Block all public access" -> Create bucket.
+       This only ALLOWS public files; it doesn't make any file public yet.
+    3. Bucket -> Properties -> Static website hosting -> Edit -> Enable.
+    4. Bucket -> Permissions -> Cross-origin resource sharing (CORS) -> Edit:
+        [
+            {
+                "AllowedHeaders": [
+                    "*"
+                ],
+                "AllowedMethods": [
+                    "GET"
+                ],
+                "AllowedOrigins": [
+                    "*"
+                ],
+                "ExposeHeaders": []
+            }
+        ]
+       CORS = which other websites may load files from the bucket. The blog
+       pages come from the EB domain, CSS and images from the S3 domain (a
+       different "origin"); some browser features (e.g. web fonts) need CORS
+       for that. Any origin (*) may only read (GET), not upload or delete.
+
+![Course video: S3 CORS configuration](screenshots/s3-cors-configuration-course.jpg)
+
+    5. Bucket (django-blog-sachin) -> Permissions -> Bucket policy -> Edit:
+        {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Sid": "PublicReadGetObject",
+                    "Effect": "Allow",
+                    "Principal": "*",
+                    "Action": [
+                        "s3:GetObject"
+                    ],
+                    "Resource": [
+                        "arn:aws:s3:::django-blog-sachin/*"
+                    ]
+                }
+            ]
+        }
+       Anyone ("Principal": "*") may read (s3:GetObject) every file (/*) in
+       the bucket -> browsers can load the CSS and images. No listing,
+       uploading or deleting. "Version" is the policy language version and
+       must be exactly "2012-10-17".
+       Mistake: pasted the course's example with "example-bucket" ->
+       "Unknown Error ... Policy has invalid resource". The Resource must be
+       my own bucket's ARN (shown above the Policy box) + /*.
+
+![Course video: S3 bucket policy](screenshots/s3-bucket-policy-course.jpg)
+
+![Error: Policy has invalid resource (example-bucket left in)](screenshots/s3-bucket-policy-invalid-resource.png)
+
+    6. IAM user for Django. Django needs its own AWS login (access keys) to
+       upload files to the bucket. IAM (Identity and Access Management) =
+       who may do what in the AWS account.
+        - Wanted to create a group first (IAM -> User groups), but this
+          account's IAM menu only shows Roles, Policies, IAM users and Root
+          access management (no User groups). A group only bundles
+          permissions for several users; for one user, attach directly.
+        - IAM -> IAM users -> Create user:
+            - User name: django-blog
+            - Console access: none (Console password type: None). Django
+              only needs keys, no console login.
+            - Permissions options: Attach policies directly ->
+              AmazonS3FullAccess (search "AmazonS3FullAccess"). NOT
+              AdministratorAccess (full control of the whole account).
+            - Review -> Create user -> "User created successfully".
+        - AmazonS3FullAccess = anything on every bucket in the account, so
+          its keys must stay secret.
+
+![IAM Create user: Attach policies directly](screenshots/iam-create-user-attach-policies-directly.png)
+
+![IAM Create user: review, django-blog with AmazonS3FullAccess](screenshots/iam-create-user-review.png)
+
+![IAM user django-blog created](screenshots/iam-user-created.png)
+
+    7. Access key for the user: IAM users -> django-blog -> Security
+       credentials -> Access keys -> Create access key:
+        - Use case: Other (the key is used on my PC and on EB, no option fits
+          exactly; the use case only changes which advice AWS shows, not the
+          key).
+        - Description tag: test-project -> Create access key.
+        - "Retrieve access keys": Access key ID (AKIA...) + Secret access key.
+          The secret is shown only on this page; after Done it can never be
+          seen again (lost = create a new key). Download .csv file, saved
+          outside the project folder. Never in code, git or screenshots.
+       The course video uses the old IAM console: Add user -> Access type ->
+       "Programmatic access" checkbox (keys created with the user). That
+       screen doesn't exist any more. New console = the same in 2 steps:
+       user with Console password type None, then Create access key.
+
+![IAM Retrieve access keys (key ID hidden, secret not shown)](screenshots/iam-retrieve-access-keys.png)
+
+![Course video: old IAM console, Programmatic access checkbox](screenshots/iam-old-console-programmatic-access-course.jpg)
+
+    8. Packages, in the venv:
+        pip install django-storages boto3
+       -> django-storages 1.14.6, boto3 1.43.123 (+ botocore, s3transfer,
+       jmespath, python-dateutil, six, urllib3).
+        - boto3 = the AWS SDK for Python (talks to S3 and other AWS services).
+        - django-storages = storage backends for Django; its S3 backend uses
+          boto3, so Django can save files to S3 instead of a local folder.
+       Then requirements.txt again (15 packages now, incl. boto3 and
+       django-storages), so EB installs them too:
+        python -m pip freeze > requirements.txt
+       Same mistake as before: > in Windows PowerShell 5.1 wrote UTF-16
+       again. Rewritten as UTF-8 (same list).
+
+    9. settings.py:
+        INSTALLED_APPS = [
+            ...
+            'storages'
+        ]
+
+        AWS_STORAGE_BUCKET_NAME = getenv("AWS_STORAGE_BUCKET_NAME")
+        AWS_S3_REGION_NAME = getenv("AWS_S3_REGION_NAME")
+        AWS_ACCESS_KEY_ID = getenv("AWS_ACCESS_KEY_ID")
+        AWS_SECRET_ACCESS_KEY = getenv("AWS_SECRET_ACCESS_KEY")
+
+        AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com"
+        STORAGES = {
+            "default": {"BACKEND": "storages.backends.s3boto3.S3Boto3Storage"},
+            "staticfiles": {"BACKEND": "storages.backends.s3boto3.S3Boto3Storage"},
+        }
+       - The keys come from environment variables, never written in the file
+         (public repo; bots scan GitHub for AWS keys within minutes).
+         Bucket name (django-blog-sachin) and region (ap-southeast-2) aren't
+         secret, but come from env vars too.
+       - STORAGES (Django 4.2+): "default" = where uploaded files go
+         (ImageField), "staticfiles" = where collectstatic puts files.
+         S3Boto3Storage = django-storages' S3 backend.
+       - AWS_S3_CUSTOM_DOMAIN -> static URLs become
+         https://django-blog-sachin.s3.ap-southeast-2.amazonaws.com/app.css
+       - Mistake: STATICFILES_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+         (what the course uses, Django 3.1). Django 5.1 removed
+         STATICFILES_STORAGE and DEFAULT_FILE_STORAGE; Django 6.1 just
+         ignores them, no error. -> STORAGES instead.
+       - Mistake: AWS_STOARGE_BUCKET_NAME (typo). django-storages only reads
+         AWS_STORAGE_BUCKET_NAME -> bucket name None.
+    10. Env vars in the terminal (PowerShell, only for this terminal; a new
+        terminal needs them again):
+            $env:AWS_STORAGE_BUCKET_NAME = "django-blog-sachin"
+            $env:AWS_S3_REGION_NAME = "ap-southeast-2"
+            $env:AWS_ACCESS_KEY_ID = "<access key id>"
+            $env:AWS_SECRET_ACCESS_KEY = "<secret access key>"
+        then:
+            python manage.py collectstatic
+        - First try (STATICFILES_STORAGE + typo): it said "collect static
+          files at the destination location ... my_site\staticfiles" and
+          "130 static files copied to '...\staticfiles'" -> still the local
+          folder, the bucket stayed empty. That question shows where the
+          files will go.
+        - After the STORAGES and typo fixes -> uploaded to the bucket:
+          admin/, app.css, blog/ at the top of the bucket.
+        - Checked: app.css, blog/index.css, blog/images/sachin.jpg,
+          admin/css/base.css on the S3 URL -> 200 (public via the bucket
+          policy). Before the upload the same URL gave 403: S3 answers 403,
+          not 404, for a missing file when the public can't list the bucket.
+
+![S3 bucket still empty after collectstatic went to the local folder](screenshots/s3-bucket-empty-after-local-collectstatic.png)
+
+![S3 bucket after collectstatic: admin/, app.css, blog/](screenshots/s3-bucket-after-collectstatic.png)
+
+    11. Local check: python manage.py runserver --nostatic (the 4 env vars
+        set in that terminal). --nostatic = runserver doesn't serve
+        /static/ itself, so the pages really use the S3 URLs.
+        -> CSS and the header image load from S3.
+        -> The post "Kimi" shows a broken image. Its image was uploaded
+        earlier through the LIVE admin, so the file is on the EB server's
+        disk (uploads/posts/...). The database (RDS, shared) only stores the
+        name posts/WhatsApp_Image_...jpeg; with S3 as "default" storage,
+        Django now builds the S3 URL for that name, but the file isn't in
+        the bucket. (The live site still shows /files/posts/... from nginx.)
+
+![Local runserver with S3: CSS from S3, Kimi's image missing in the bucket](screenshots/local-runserver-s3-static.png)
+
+    12. Separate folders in the bucket: static/ for collectstatic, media/
+        for uploads. New file custom_storages.py (next to manage.py):
+            from django.conf import settings
+            from storages.backends.s3boto3 import S3Boto3Storage
+
+            class StaticStorage(S3Boto3Storage):
+                location = settings.STATICFILES_LOCATION
+
+            class MediaStorage(S3Boto3Storage):
+                location = settings.MEDIAFILES_LOCATION
+        settings.py:
+            STORAGES = {
+                "default": {"BACKEND": "custom_storages.MediaStorage"},
+                "staticfiles": {"BACKEND": "custom_storages.StaticStorage"},
+            }
+
+            STATICFILES_LOCATION = "static"
+            MEDIAFILES_LOCATION = "media"
+        - location = the folder (prefix) inside the bucket. Static URLs
+          become https://django-blog-sachin.s3.ap-southeast-2.amazonaws.com/static/app.css,
+          uploads .../media/posts/...
+        - Emptied the bucket (S3 console: select all -> Delete), then
+          collectstatic again.
+        - Mistake: default_acl = 'public-read' in both classes (from the
+          course) -> collectstatic failed on the first file:
+            botocore.exceptions.ClientError: An error occurred
+            (AccessControlListNotSupported) when calling the PutObject
+            operation: The bucket does not allow ACLs
+          Buckets created since 2023 have ACLs turned off (Object Ownership:
+          "Bucket owner enforced"); the course's 2021 bucket still allowed
+          them. Not needed anyway: the bucket policy already makes every
+          file public. Removed both default_acl lines.
+        -> collectstatic uploaded everything into static/ (admin/, app.css,
+        blog/). Checked: static/app.css, static/blog/index.css,
+        static/blog/images/sachin.jpg, static/admin/css/base.css -> 200;
+        the old top-level app.css -> 403 (deleted).
+
+![S3 bucket: only the static/ folder at the top](screenshots/s3-bucket-static-folder.png)
+
+![Inside static/: admin/, app.css, blog/](screenshots/s3-bucket-static-folder-contents.png)
+
+    13. Uploads to S3: local admin (runserver, env vars set) -> edited the
+        post "Kimi" -> chose a new image -> Save.
+        -> The ImageField (upload_to="posts") now goes through MediaStorage:
+        the file landed in the bucket at media/posts/WhatsApp_Image_...jpeg
+        (121.9 KB). The bucket now has media/ and static/ at the top.
+        -> The database only stores the name posts/WhatsApp_Image_...jpeg;
+        post.image.url adds the domain and media/:
+            https://django-blog-sachin.s3.ap-southeast-2.amazonaws.com/media/posts/WhatsApp_Image_...jpeg
+        Checked: that URL -> 200 image/jpeg.
+        Uploads on S3 aren't lost on a new EB deploy (the old problem with
+        uploads/ on the EB server's disk).
+
+![S3 bucket: media/ and static/](screenshots/s3-bucket-media-and-static.png)
+
+![media/ -> posts/](screenshots/s3-media-posts-folder.png)
+
+![media/posts/: the image uploaded from the local admin](screenshots/s3-media-posts-uploaded-image.png)
+
+    14. New zip s3_static_files.zip (1.3 MB): manage.py, requirements.txt
+        (with boto3, django-storages), custom_storages.py, .ebextensions/,
+        my_site/, blog/, templates/. No staticfiles/, uploads/ or
+        db.sqlite3 any more (S3 and RDS have them). Checked inside: no
+        access key in any file. Deployed to the EB environment.
+        -> Pages 200, but no CSS and no images. The HTML links to
+            https://None.s3.None.amazonaws.com/static/app.css
+        The EB environment properties had no AWS_STORAGE_BUCKET_NAME and
+        AWS_S3_REGION_NAME yet, so getenv() gave None, and the f-string
+        AWS_S3_CUSTOM_DOMAIN became "None.s3.None.amazonaws.com". The env
+        vars set in my PowerShell terminal only exist on my PC.
+
+![Live site after the S3 deploy without the env vars: links to None.s3.None.amazonaws.com](screenshots/eb-live-s3-env-vars-missing.png)
+
+    15. A .env file for the EB environment properties, made from the
+        downloaded access key CSV (django-blog_accessKeys.csv, columns
+        "Access key ID" and "Secret access key"):
+            AWS_STORAGE_BUCKET_NAME=django-blog-sachin
+            AWS_S3_REGION_NAME=ap-southeast-2
+            AWS_ACCESS_KEY_ID=<from the csv>
+            AWS_SECRET_ACCESS_KEY=<from the csv>
+        - .env format: one NAME=value per line, no quotes, no spaces around =.
+        - Saved as Downloads\django-blog-s3.env, outside the project folder,
+          so it can't end up in a zip or a commit.
+        - EB: Configuration -> Updates, monitoring, and logging -> Edit ->
+          Environment properties -> Import from .env file -> choose the file
+          -> the 4 rows are added (Plain text); the existing IS_PRODUCTION,
+          SECRET_KEY, APP_HOST rows stay.
+
+    16. Imported the .env file -> Apply. No redeploy needed: changing
+        environment properties restarts the app by itself.
+        -> The live HTML now links to
+            https://django-blog-sachin.s3.ap-southeast-2.amazonaws.com/static/...
+            https://django-blog-sachin.s3.ap-southeast-2.amazonaws.com/media/posts/...
+        Checked: home, all posts, Read Later, admin login -> 200; every CSS
+        file, the header image and the post image on the home page -> 200
+        from S3; the admin CSS also comes from S3 (static/admin/css/...).
+        Approach 3 works on the live site: Django only renders the pages,
+        S3 serves static files and uploads.
+
 
 ## Route 53, SSL, load balancer: what they are
 
