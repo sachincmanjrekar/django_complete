@@ -1442,6 +1442,60 @@
 
 ![Live site on RDS Postgres: styled, no posts yet](screenshots/eb-live-site-rds-empty.png)
 
+## Serving static files and uploads with the web server (approach 2)
+
+    - The 3 approaches from the slide (see "Django does not serve static or
+      uploaded files automatically"), and where this project is:
+        1. Django serves the files (urls.py): done first, with
+           static(settings.MEDIA_URL, ...) + static(settings.STATIC_URL, ...)
+           in my_site/urls.py. Only worked on EB with DEBUG on (step 15 of
+           the EB steps), because static() adds no routes when DEBUG is off.
+        2. The web server serves the files, Django the rest: NOW.
+        3. A dedicated service for static files and uploads: not done.
+    - EB's Python platform runs a web server (nginx) in front of Django. It can
+      serve folders for given URLs by itself, without asking Django, so it
+      works with DEBUG off.
+    - New file .ebextensions/static-files.config:
+        option_settings:
+          aws:elasticbeanstalk:environment:proxy:staticfiles:
+            /static: staticfiles
+            /files: uploads
+      URL on the left, folder in the zip on the right:
+        /static -> staticfiles/ (collectstatic output, STATIC_ROOT)
+        /files  -> uploads/ (MEDIA_ROOT, post images)
+    - Mistake: first created it as .ebextensions/static-files (no .config).
+      EB only reads files in .ebextensions/ that end in .config, so it would
+      have been ignored without any error.
+    - my_site/urls.py: the two static() lines removed, back to:
+        urlpatterns = [
+            path('admin/', admin.site.urls),
+            path('', include('blog.urls'))
+        ]
+      (the static and settings imports are still there, now unused)
+    - Locally (runserver): CSS still works, the staticfiles app serves
+      /static/. But nothing serves /files/ any more -> post images 404 on my
+      PC (checked: /files/posts/woods.jpg -> 404, app.css still found).
+    - Deployed: zip again (with both .config files in .ebextensions/) ->
+      upload to the EB environment.
+      -> Site looks the same as before: CSS, header image, admin CSS and
+      /files/ images -> 200, all with "Server: nginx". urls.py has no
+      static() any more, so it's nginx serving them, not Django.
+      -> But IS_PRODUCTION is still False, so DEBUG is still on: /posts/nope/
+      shows Django's debug 404 ("Django tried these URL patterns ...")
+      instead of templates/404.html.
+
+![Live site after approach 2: nginx serves CSS and images](screenshots/eb-live-site-nginx-static.png)
+
+    - Adding a post in the live admin (/admin/blog/post/add/):
+        - 600 KB image -> saved fine.
+        - 2 MB image -> "413 Request Entity Too Large", page footer "nginx".
+      The error comes from nginx, not Django: nginx in front of Django
+      rejects requests over 1 MB by default, so the 2 MB upload never reached
+      Django. Locally there's no nginx (runserver), so big images worked
+      there. Not fixed, moved on to approach 3.
+
+![nginx 413 Request Entity Too Large for a 2 MB image upload](screenshots/eb-nginx-413-upload-too-large.png)
+
 ## Route 53, SSL, load balancer: what they are
 
     - The browser shows "Not secure" for the live blog because it's plain
