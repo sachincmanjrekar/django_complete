@@ -1101,6 +1101,51 @@
     - Locally with runserver, the staticfiles app answers /static/ before the
       URL patterns are checked, so it serves the originals and this route
       isn't reached anyway.
+
+## Virtual environment for the project (venv)
+
+    - A venv = a separate Python with its own packages, just for this project.
+      The host installs exactly these packages too, not whatever is on my PC.
+    - Create (in my_site/):
+        python3 -m venv django_my_site
+      -> folder django_my_site/ with Scripts/, Lib/, pyvenv.cfg.
+    - Creating it does NOT switch to it. Activate in each new terminal:
+        .\django_my_site\Scripts\Activate.ps1
+      -> the prompt starts with (django_my_site).
+    - It starts empty, so install again inside it:
+        pip install django pillow
+      -> Django 6.1.2, pillow 13.0.0 (+ asgiref, sqlparse, tzdata).
+    - The venv writes its own .gitignore with * -> git ignores the whole folder.
+    - python3 on this PC is a second Python 3.14 (AppData\Local\Python, 3.14.2),
+      not C:\Python314 (3.14.4). The venv uses 3.14.2. Fine either way.
+    - Checked with the venv's python: manage.py check is clean; pages, an
+      upload and a static file -> 200; /posts/nope/ -> 404.
+    - .vscode/settings.json pointed VS Code at C:\Python314, so it now points
+      at the venv:
+        "python.defaultInterpreterPath": "${workspaceFolder}\\django_my_site\\Scripts\\python.exe",
+        "python-envs.defaultEnvManager": "ms-python.python:venv",
+        "python.terminal.activateEnvironment": true
+      ${workspaceFolder} = the opened folder (my_site), so no full path.
+
+## requirements.txt: the package list for the host
+
+    - With the venv active:
+        python -m pip freeze > requirements.txt
+      -> every package in the venv with its exact version:
+        asgiref==3.13.0
+        Django==6.1.2
+        pillow==13.0.0
+        sqlparse==0.6.1
+        tzdata==2026.6
+    - The host installs the same versions with pip install -r requirements.txt.
+      That's why the venv matters: freeze from the system Python would list
+      everything ever installed on this PC.
+    - Mistake: > in Windows PowerShell 5.1 writes UTF-16. pip can read it, but
+      git treats it as a binary file (no diff), and other tools may not read
+      it. Rewritten as plain UTF-8 from Git Bash (same command). In PowerShell:
+        python -m pip freeze | Out-File -Encoding utf8 requirements.txt
+    - Run freeze again after installing a new package.
+    - Checked: pip install -r requirements.txt --dry-run reads it fine.
     - Static files live in many folders (each app + STATICFILES_DIRS), so they
       also need one place to be gathered: STATIC_ROOT + manage.py collectstatic.
       my_site doesn't have STATIC_ROOT yet.
@@ -1124,6 +1169,10 @@
         https://github.com/academind/django-practical-guide-course-code/tree/prj-blog-uploads-sessions-01-serving-uploaded-files/
     - SQL vs NoSQL (Academind article):
         https://academind.com/articles/sql-vs-nosql
+    - Virtual environments (Python docs), with the activate commands for
+      macOS / Linux and Windows further down:
+        https://docs.python.org/3/library/venv.html#creating-virtual-environments
+      The easiest way to activate is to let VS Code do it (.vscode/settings.json).
     - Path converters (str, int, slug, uuid, path) in URLs:
         https://docs.djangoproject.com/en/3.1/topics/http/urls/#path-converters
     - PEP 8 (Python style guide):

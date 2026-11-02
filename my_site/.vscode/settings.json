@@ -1,5 +1,6 @@
 {
-    "python.defaultInterpreterPath": "C:\\Python314\\python.exe",
+    "python.defaultInterpreterPath": "${workspaceFolder}\\django_my_site\\Scripts\\python.exe",
     "python.languageServer": "Pylance",
-    "python-envs.defaultEnvManager": "ms-python.python:system"
+    "python-envs.defaultEnvManager": "ms-python.python:venv",
+    "python.terminal.activateEnvironment": true
 }
