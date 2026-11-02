@@ -1002,6 +1002,68 @@
       templates/404.html; Read Later save, list and remove still work on
       /read-later/; a valid comment is still saved (test rows rolled back).
 
+## Django does not serve static or uploaded files automatically
+
+    - In development they only work because of DEBUG = True:
+        - Static files: runserver with django.contrib.staticfiles serves them.
+        - Uploads: the static(settings.MEDIA_URL, ...) route in my_site/urls.py.
+    - With DEBUG = False both stop. static() returns an empty list, so there is
+      no /files/ route at all (checked: DEBUG on -> ^files/..., DEBUG off -> []).
+    - python manage.py runserver is a development-only server. In production
+      something else has to serve those files. 3 options (course slide):
+
+| Option | Notes |
+|---|---|
+| Configure Django to serve such files (via urls.py) | Okay for smaller sites, not performance-optimized though |
+| Configure a web server to serve static files AND the Django app | Same server and device but separate processes, better for performance |
+| Use a dedicated service / server for static and uploaded files | Initial setup is more complex but offers the best performance |
+
+    - This deployment uses AWS.
+
+## Deployment considerations (course slide)
+
+| Step | Why |
+|---|---|
+| Choose a database (reconsider SQLite) | SQLite might work but might be too slow or be erased (depends on the hosting provider) |
+| Adjust settings | Adjust config for the chosen hosting provider, disable development-only settings |
+| Collect static files | Static files are NOT served automatically (just like user uploads) |
+| Handle static & uploaded files serving | Same reason: neither is served automatically |
+| Choose a host + deploy! | Also dive into host-specific docs + examples |
+
+## Choosing a database: SQL vs NoSQL
+
+    - Prefer SQL, because Django's model system supports it (models, migrations,
+      relations). NoSQL databases aren't supported by Django's ORM out of the box.
+    - SQL options: SQLite, MySQL, Postgres. For a live site the slide points to
+      MySQL or Postgres instead of SQLite.
+    - SQLite is one file (db.sqlite3) next to the code. On a host the server's
+      disk may be replaced on every deploy -> the data is gone. A database
+      server keeps the data apart from the app.
+    - Article: https://academind.com/articles/sql-vs-nosql
+
+## Django is NOT a webserver: WSGI and ASGI
+
+    - Django is a framework for Python. It knows how to work with incoming
+      requests and create responses.
+    - It does NOT listen for incoming requests or handle any other server tasks.
+      In development, python manage.py runserver does that part.
+    - In production a real server program (e.g. Gunicorn for WSGI, Uvicorn or
+      Daphne for ASGI) listens and hands each request to Django through one of
+      the two entry files startproject made in my_site/my_site/:
+        - wsgi.py - WSGI (Web Server Gateway Interface), the classic standard,
+          one request at a time per worker:
+            os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'my_site.settings')
+            application = get_wsgi_application()
+          settings.py points to it: WSGI_APPLICATION = 'my_site.wsgi.application'
+        - asgi.py - ASGI (Asynchronous Server Gateway Interface), the newer one,
+          also supports async views and long connections like websockets.
+    - Both just expose an object called application. The server is told where
+      it is (e.g. my_site.wsgi:application). This blog has no async code, so
+      WSGI is enough.
+    - Static files live in many folders (each app + STATICFILES_DIRS), so they
+      also need one place to be gathered: STATIC_ROOT + manage.py collectstatic.
+      my_site doesn't have STATIC_ROOT yet.
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
@@ -1019,6 +1081,8 @@
         https://github.com/academind/django-practical-guide-course-code/tree/prj-data-models-zz-extra-files/slides
     - Section 14 code snapshots = branches starting with "prj-blog-uploads-sessions-...", e.g.:
         https://github.com/academind/django-practical-guide-course-code/tree/prj-blog-uploads-sessions-01-serving-uploaded-files/
+    - SQL vs NoSQL (Academind article):
+        https://academind.com/articles/sql-vs-nosql
     - Path converters (str, int, slug, uuid, path) in URLs:
         https://docs.djangoproject.com/en/3.1/topics/http/urls/#path-converters
     - PEP 8 (Python style guide):
