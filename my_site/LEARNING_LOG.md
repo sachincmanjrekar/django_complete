@@ -1079,6 +1079,28 @@
     - Development doesn't use staticfiles/: runserver still serves the
       originals. After changing a CSS file, run collectstatic again before
       deploying, or the copy is old.
+
+## Serving static files via urls.py
+
+    - my_site/urls.py - a second static() route, this time for the collected
+      folder:
+        ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) \
+          + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+      The \ continues the line, so both lists are added to urlpatterns.
+    - This is option 1 from the slide: Django serves the files itself. Okay for
+      small sites, not built for speed.
+    - Checked (DEBUG on): /static/app.css, /static/blog/post-detail.css and
+      /static/admin/css/base.css -> 200 text/css from staticfiles/; uploads
+      and pages still 200.
+    - Catch: static() only adds the route when DEBUG is True:
+        DEBUG on  -> [<URLPattern '^static/(?P<path>.*)$'>]
+        DEBUG off -> []
+      So with DEBUG = False (production) this line serves nothing, the same as
+      the /files/ line. It's a development helper, Django's way of saying
+      "don't serve files like this in production".
+    - Locally with runserver, the staticfiles app answers /static/ before the
+      URL patterns are checked, so it serves the originals and this route
+      isn't reached anyway.
     - Static files live in many folders (each app + STATICFILES_DIRS), so they
       also need one place to be gathered: STATIC_ROOT + manage.py collectstatic.
       my_site doesn't have STATIC_ROOT yet.
