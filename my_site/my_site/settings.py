@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
 from pathlib import Path
+from os import getenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -19,13 +20,20 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-eu*u43@#0kyu%08v)6fmb_*su1$nw*f(2askwvz74-cbtm#%b%'
-
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Env vars are text, so compare with "true" ("False" as text would count as True)
+# DEBUG is on unless IS_PRODUCTION is "true" (any case, AWS has "True")
+DEBUG = getenv("IS_PRODUCTION", "false").lower() != "true"
 
-ALLOWED_HOSTS = []
+# SECURITY WARNING: keep the secret key used in production secret!
+# Production sets SECRET_KEY as an env var; only development falls back to this one
+SECRET_KEY = getenv("SECRET_KEY")
+if DEBUG and not SECRET_KEY:
+    SECRET_KEY = "django-insecure-local-development-only"
+
+# Empty list + DEBUG on = Django allows localhost / 127.0.0.1 by itself
+APP_HOST = getenv("APP_HOST")
+ALLOWED_HOSTS = [APP_HOST] if APP_HOST else []
 
 
 # Application definition

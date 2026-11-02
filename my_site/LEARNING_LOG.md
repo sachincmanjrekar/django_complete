@@ -1019,6 +1019,9 @@
 | Use a dedicated service / server for static and uploaded files | Initial setup is more complex but offers the best performance |
 
     - This deployment uses AWS.
+    - Static files live in many folders (each app + STATICFILES_DIRS), so they
+      also need one place to be gathered: STATIC_ROOT + manage.py collectstatic
+      (see "Collecting static files" below).
 
 ## Deployment considerations (course slide)
 
@@ -1146,9 +1149,207 @@
         python -m pip freeze | Out-File -Encoding utf8 requirements.txt
     - Run freeze again after installing a new package.
     - Checked: pip install -r requirements.txt --dry-run reads it fine.
-    - Static files live in many folders (each app + STATICFILES_DIRS), so they
-      also need one place to be gathered: STATIC_ROOT + manage.py collectstatic.
-      my_site doesn't have STATIC_ROOT yet.
+
+## Settings from environment variables: DEBUG, SECRET_KEY, ALLOWED_HOSTS
+
+    - settings.py:
+        from os import getenv
+
+        DEBUG = getenv("IS_PRODUCTION", "false").lower() != "true"
+
+        SECRET_KEY = getenv("SECRET_KEY")
+        if DEBUG and not SECRET_KEY:
+            SECRET_KEY = "django-insecure-local-development-only"
+
+        APP_HOST = getenv("APP_HOST")
+        ALLOWED_HOSTS = [APP_HOST] if APP_HOST else []
+    - On my PC nothing is set -> DEBUG on, the dev key, localhost allowed.
+      On AWS (Environment properties, Source: Plain text): IS_PRODUCTION=True,
+      SECRET_KEY=<new key>, APP_HOST=<domain>. Parameter Store / Secrets
+      Manager would look the value up in another AWS service (needs extra
+      IAM permissions).
+    - DEBUG is the OPPOSITE of "is production", so != "true". .lower() makes
+      True / true / TRUE all count (the AWS console has "True").
+    - Mistake: DEBUG = getenv("IS_PRODUCTION", "false") == "true" -> DEBUG off
+      on my PC (400 on every page, runserver won't start), and
+      IS_PRODUCTION=true would turn it ON in production.
+    - Env vars are always text. My first try:
+        DEBUG = getenv("IS_PRODUCTION", True)
+      Mistake 1: any text that isn't empty counts as True, so
+      IS_PRODUCTION=false gave DEBUG = "false" -> still on. Comparing with
+      == "true" gives a real True/False.
+      Mistake 2: the name was the wrong way round (production -> DEBUG on).
+    - Mistake: ALLOWED_HOSTS = [getenv("APP_HOST")] -> [None] on my PC. The
+      list isn't empty, so Django stops allowing localhost by itself:
+      400 Bad Request (DisallowedHost) on 127.0.0.1:8000. Empty list instead.
+    - The old key was on GitHub, so it's public forever (git history). It's
+      removed from the file, and production gets a NEW key, made once with:
+        python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+    - No key in production -> Django refuses to start: "The SECRET_KEY setting
+      must not be empty". Better than running with a key everyone knows.
+    - Side effect: a new local key ends old sessions (admin login, Read Later
+      list), because they were signed with the old key.
+    - Checked:
+        - no env vars -> DEBUG True, 127.0.0.1 and localhost -> 200
+        - production vars -> DEBUG False, own host 200, other host 400
+        - production without SECRET_KEY -> ImproperlyConfigured
+        - IS_PRODUCTION=True and =true -> DEBUG False both times
+
+## Deploying to AWS Elastic Beanstalk: step by step (reference)
+
+    Elastic Beanstalk (EB) = the AWS service the course uses to run the app.
+    Steps in the order done so far (more get added as the course goes on).
+
+    1. Settings from environment variables (my_site/settings.py):
+        from os import getenv
+
+        DEBUG = getenv("IS_PRODUCTION", "false").lower() != "true"
+
+        SECRET_KEY = getenv("SECRET_KEY")
+        if DEBUG and not SECRET_KEY:
+            SECRET_KEY = "django-insecure-local-development-only"
+
+        APP_HOST = getenv("APP_HOST")
+        ALLOWED_HOSTS = [APP_HOST] if APP_HOST else []
+
+    2. Where collected static files go (settings.py):
+        STATIC_ROOT = BASE_DIR / "staticfiles"
+
+    3. Collect static files:
+        python manage.py collectstatic
+       -> staticfiles/ (137 files)
+
+    4. Static files and uploads via urls.py (my_site/urls.py):
+        ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) \
+          + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+
+    5. Virtual environment + packages:
+        python3 -m venv django_my_site
+        .\django_my_site\Scripts\Activate.ps1
+        pip install django pillow
+       VS Code: .vscode/settings.json points at the venv.
+
+    6. requirements.txt (venv active):
+        python -m pip freeze | Out-File -Encoding utf8 requirements.txt
+       (plain > in Windows PowerShell 5.1 writes UTF-16)
+
+    7. EB config file: .ebextensions/django.config
+       Correct version (YAML: colons, spaces not tabs):
+        option_settings:
+          aws:elasticbeanstalk:container:python:
+            WSGIPath: my_site.wsgi:application
+       my_site.wsgi = my_site/wsgi.py, application = the object inside it.
+       Mistakes in my first version (fixed):
+        option_settings;
+          aws:elasticbeanstalk:container:python;
+          SWGIPath: mysite.wsgi:application
+        - ; instead of : on lines 1-2 -> not valid YAML.
+        - SWGIPath -> must be WSGIPath.
+        - mysite -> the folder is my_site.
+       Mistakes on the way to fixing it:
+        - option_setting (no s) -> EB only knows option_settings.
+        - WSGIPath line indented 2 spaces, same as the line above -> it was a
+          sibling, not inside the python section. Indentation = nesting in
+          YAML, so it needs 4.
+
+    8. Zip the CONTENTS of my_site/ (not the folder itself) -> code.zip.
+       manage.py, requirements.txt and .ebextensions/ are at the top of the
+       zip. In it: .ebextensions/, blog/, my_site/, templates/, staticfiles/,
+       uploads/, db.sqlite3, manage.py, requirements.txt. Not the venv.
+
+    9. Elastic Beanstalk -> Environment details -> Upload local file ->
+       upload code.zip.
+
+    10. Environment properties: Source = Plain text (not Parameter Store or
+        Secrets Manager, those look the value up in other AWS services and
+        need extra permissions):
+            IS_PRODUCTION = True
+            APP_HOST      = (set)
+
+    11. Click Create.
+        -> "Elastic Beanstalk is launching your environment" (environment
+        Django-blog-env, region ap-southeast-2). It failed after a few seconds,
+        because the zip still had the broken django.config (step 7):
+            ERROR The configuration file .ebextensions/django.config ...
+            contains invalid YAML or JSON. YAML exception: Invalid Yaml:
+            mapping values are not allowed here ... line 3, column 11:
+            SWGIPath: mysite.wsgi:application
+            ERROR Failed to launch environment.
+        The ; at the end of lines 1-2 means they aren't "key:" lines, so the
+        parser doesn't expect a "key: value" on line 3 (column 11 = the colon
+        after SWGIPath). EB reads the file before anything else, so nothing
+        was started.
+
+    12. New zip (current settings.py, mysite -> my_site in django.config) and
+        a deploy to the same environment:
+            Status: Failed, Type: Environment Update
+            ERROR Failed Environment update activity. Reason: Environment not
+            found with ID: e-...
+        An environment that fails to launch is removed by EB, so there was no
+        environment left to update. A failed launch means creating it again.
+        Tried a deploy to it a second time (with the fixed zip) -> the same
+        "Environment not found" error, same ID.
+
+    13. Create environment again (Environments -> Create environment), with
+        the fixed code.zip (correct django.config + current settings.py) and
+        the environment properties, Source = Plain text:
+            IS_PRODUCTION = True
+            SECRET_KEY    = a new key, made with:
+                python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+            APP_HOST      = the environment's domain (no http://, no /)
+        -> "Environment successfully launched."
+
+    14. Opened the domain -> Bad Request (400) on every page. Set APP_HOST to
+        the URL from the address bar and deployed again -> still 400.
+        The 400 came from Django (DisallowedHost), so Django was running and
+        the SECRET_KEY worked; only the host didn't match. APP_HOST must be
+        the domain only, no http:// and no trailing /:
+            django-blog-env-1.eba-tep4bxha.ap-southeast-2.elasticbeanstalk.com
+        Changing environment properties restarts the app by itself, no new
+        deploy needed.
+        -> The blog is live: home, all posts, a post, Read Later, admin login
+        -> 200; /posts/nope/ -> 404.
+        -> But no CSS and no images: /static/... and /files/... -> 404. With
+        DEBUG off, static() in urls.py adds no routes (see "Serving static
+        files via urls.py"), so nothing serves those files yet.
+
+    15. Why the instructor's site had CSS and images: his settings.py
+        (course branch deployment-03-deploying-with-elastic-beanstalk) has
+            DEBUG = getenv("IS_DEVELOPMENT", True)
+        Not set -> True; set to False -> the text "False", which also counts
+        as True. So his live site runs with DEBUG on, and static() serves the
+        files. Same urls.py as mine.
+        To match the video: Configuration -> Updates, monitoring, and logging
+        -> Edit -> IS_PRODUCTION = False -> Apply.
+        -> DEBUG on, the site looks like local: CSS, the header image, post
+        images and admin CSS -> 200.
+        Downside: DEBUG on in production = error pages show code and
+        settings to anyone. Set IS_PRODUCTION back to True later.
+
+## Route 53, SSL, load balancer: what they are
+
+    - The browser shows "Not secure" for the live blog because it's plain
+      http://. These three are what a real site adds:
+    - Route 53 = AWS's DNS service, the internet's phone book: turns a name
+      (e.g. sachinsblog.com) into the server's address. Buy a domain there
+      (or elsewhere) and point it at the EB environment, instead of the long
+      ...elasticbeanstalk.com name.
+    - SSL (HTTPS) = encrypts the traffic between browser and server, so
+      logins, form data and cookies can't be read on the way (padlock,
+      https://). Needs a certificate that proves you own the domain; AWS
+      Certificate Manager (ACM) gives them out free. Only for a domain you
+      own, and AWS owns elasticbeanstalk.com -> HTTPS needs your own domain.
+    - Load balancer = sits in front of the app servers and spreads visitors
+      over them; if one server is busy or broken, traffic goes to another.
+      ACM certificates are attached to the load balancer, not the server, so
+      on AWS HTTPS usually comes with one. My environment is "Single
+      instance" (free tier preset): one server, no load balancer. A load
+      balancer costs money even with little traffic.
+    - Together:
+        browser -> sachinsblog.com (Route 53) -> load balancer (SSL
+        certificate) -> Django server(s)
+        Also: the config still had ; on lines 1-2 and SWGIPath, so it would
+        have failed the same way.
 
 ## Helpful resources
 
