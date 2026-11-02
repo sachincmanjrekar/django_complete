@@ -1023,6 +1023,8 @@
       also need one place to be gathered: STATIC_ROOT + manage.py collectstatic
       (see "Collecting static files" below).
 
+![Slide: Static files & user uploads, 3 ways to serve them](screenshots/deploy-static-uploads-options-slide.jpg)
+
 ## Deployment considerations (course slide)
 
 | Step | Why |
@@ -1032,6 +1034,8 @@
 | Collect static files | Static files are NOT served automatically (just like user uploads) |
 | Handle static & uploaded files serving | Same reason: neither is served automatically |
 | Choose a host + deploy! | Also dive into host-specific docs + examples |
+
+![Slide: Deployment considerations](screenshots/deploy-considerations-slide.jpg)
 
 ## Choosing a database: SQL vs NoSQL
 
@@ -1043,6 +1047,8 @@
       disk may be replaced on every deploy -> the data is gone. A database
       server keeps the data apart from the app.
     - Article: https://academind.com/articles/sql-vs-nosql
+
+![Slide: Choosing a database, SQL vs NoSQL](screenshots/deploy-choosing-database-slide.jpg)
 
 ## Django is NOT a webserver: WSGI and ASGI
 
@@ -1063,6 +1069,8 @@
     - Both just expose an object called application. The server is told where
       it is (e.g. my_site.wsgi:application). This blog has no async code, so
       WSGI is enough.
+
+![Slide: Django is NOT a webserver](screenshots/deploy-django-not-webserver-slide.jpg)
 
 ## Collecting static files: STATIC_ROOT + collectstatic
 
@@ -1266,6 +1274,8 @@
             IS_PRODUCTION = True
             APP_HOST      = (set)
 
+![EB environment property: Source dropdown, Plain text vs Parameter Store vs Secrets Manager](screenshots/eb-env-property-source-plain-text.png)
+
     11. Click Create.
         -> "Elastic Beanstalk is launching your environment" (environment
         Django-blog-env, region ap-southeast-2). It failed after a few seconds,
@@ -1289,6 +1299,10 @@
         environment left to update. A failed launch means creating it again.
         Tried a deploy to it a second time (with the fixed zip) -> the same
         "Environment not found" error, same ID.
+        Also: the config still had ; on lines 1-2 and SWGIPath, so it would
+        have failed the same way.
+
+![EB Upload and deploy dialog on the deleted environment](screenshots/eb-upload-and-deploy-deleted-env.png)
 
     13. Create environment again (Environments -> Create environment), with
         the fixed code.zip (correct django.config + current settings.py) and
@@ -1298,6 +1312,8 @@
                 python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
             APP_HOST      = the environment's domain (no http://, no /)
         -> "Environment successfully launched."
+
+![EB environment properties: APP_HOST, IS_PRODUCTION, SECRET_KEY (value hidden)](screenshots/eb-environment-properties.png)
 
     14. Opened the domain -> Bad Request (400) on every page. Set APP_HOST to
         the URL from the address bar and deployed again -> still 400.
@@ -1313,6 +1329,8 @@
         DEBUG off, static() in urls.py adds no routes (see "Serving static
         files via urls.py"), so nothing serves those files yet.
 
+![Live site on EB with DEBUG off: no CSS, broken images](screenshots/eb-live-site-no-css.png)
+
     15. Why the instructor's site had CSS and images: his settings.py
         (course branch deployment-03-deploying-with-elastic-beanstalk) has
             DEBUG = getenv("IS_DEVELOPMENT", True)
@@ -1325,6 +1343,104 @@
         images and admin CSS -> 200.
         Downside: DEBUG on in production = error pages show code and
         settings to anyone. Set IS_PRODUCTION back to True later.
+
+## RDS: a PostgreSQL database on AWS
+
+    - RDS (Relational Database Service) = AWS runs the database server; the
+      data lives apart from the EB server, so a deploy doesn't replace it.
+    - Created with RDS -> Create database -> Easy create -> PostgreSQL.
+      Easy create fills in defaults; some can be changed later
+      ("Editable after database is created").
+    - Config of the database (Configuration tab):
+
+| Setting | Value |
+|---|---|
+| DB instance ID | django-blog |
+| Engine version | PostgreSQL 18.3 |
+| Instance class | db.t4g.micro (2 vCPU, 1 GB RAM) |
+| Storage | 20 GiB, General Purpose SSD (gp2), storage autoscaling turned off after creating (was on, up to 1000 GiB) |
+| Encryption | Enabled (aws/rds key) |
+| Multi-AZ | No |
+| Publicly accessible | No |
+| Database port | 5432 |
+| VPC security group | default |
+| Automatic backups | Enabled |
+| Monitoring | Database Insights - Standard, Enhanced Monitoring (60 s) |
+| Deletion protection | Disabled |
+| Created | November 02, 2026, 22:54 (UTC+05:30) |
+
+    - Not editable after creating: Encryption, VPC, Option group.
+
+![RDS Easy create defaults (editable after creating or not)](screenshots/rds-easy-create-defaults.png)
+
+![RDS django-blog Configuration tab (account details hidden)](screenshots/rds-configuration.png)
+
+## Connecting Django to RDS Postgres and migrating
+
+    1. settings.py - DATABASES points at RDS instead of SQLite:
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.postgresql',
+                'NAME': 'postgres',
+                'USER': '<master username>',
+                'PASSWORD': '<master password>',
+                'HOST': '<RDS endpoint>',
+                'PORT': '5432'
+            }
+        }
+       - NAME = 'postgres': Easy create made no database of its own ("DB name
+         -"), so the built-in one.
+       - HOST = the RDS Endpoint (Connectivity & security tab, or the psql
+         command in Code snippets), NOT the Elastic Beanstalk domain.
+
+![RDS Connectivity & security: endpoint in the code snippets (username hidden)](screenshots/rds-connectivity-endpoint.png)
+       - The password is in settings.py right now -> not committed.
+    2. Modify -> Connectivity -> Additional configuration -> Publicly
+       accessible. (The security group dropdown there only attaches groups,
+       it doesn't open a port.)
+
+![RDS Modify: Connectivity, security group dropdown and Publicly accessible](screenshots/rds-modify-connectivity-public-access.png)
+    3. Postgres driver in the venv:
+        pip install "psycopg[binary]"
+       -> psycopg 3.3.6 + psycopg-binary 3.3.6, then requirements.txt again
+       with pip freeze. Without it: ImproperlyConfigured: Error loading
+       psycopg2 or psycopg module.
+    4. migrate -> OperationalError: connection timeout expired. The driver
+       worked, but AWS blocked port 5432.
+       Fix: EC2 -> Security Groups -> default (sg-0eabef188bdb12e52, the
+       database's group) -> Inbound rules -> Edit inbound rules -> Add rule:
+            All traffic  | source: the group itself   (was already there)
+            PostgreSQL   | 5432 | My IP               (my PC)
+            PostgreSQL   | 5432 | sg-090ca1f7400bf058a (the EB server's group)
+        -> Save rules.
+
+![default security group inbound rules: PostgreSQL from My IP (hidden) and from the EB group](screenshots/ec2-default-sg-inbound-rules.png)
+       - Mistake: first opened the awseb-... group (Django-blog-env-1, has
+         HTTP 80 from 0.0.0.0/0). That's the web server's group; rules there
+         don't open the database.
+
+![Mistake: editing the awseb (web server) security group](screenshots/ec2-wrong-security-group-awseb.png)
+
+![EC2 Security Groups: awseb (web server) and default (database)](screenshots/ec2-security-groups-list.png)
+       - Source = a security group instead of an IP: keeps working when the
+         EB server's IP changes. My IP can change after a router restart ->
+         update that rule then.
+       - Never 0.0.0.0/0 for the database (whole internet).
+    5. python manage.py migrate -> all migrations OK (admin, auth, blog,
+       contenttypes, sessions). The tables now exist in RDS Postgres.
+       The RDS database starts empty: posts, comments and the admin user
+       are still only in db.sqlite3.
+    6. python manage.py createsuperuser -> "Superuser created successfully."
+       A new admin user, this time stored in RDS Postgres.
+    7. New zip (new_zip.zip) uploaded to the EB environment: settings.py with
+       the Postgres DATABASES, requirements.txt with psycopg, the same
+       django.config. db.sqlite3 is no longer in it (not needed).
+       -> Live site: home, all posts, admin login -> 200, CSS -> 200. No posts
+       shown: the live site reads from RDS now, which is still empty. Works
+       because the default security group allows 5432 from the EB server's
+       group (step 4).
+
+![Live site on RDS Postgres: styled, no posts yet](screenshots/eb-live-site-rds-empty.png)
 
 ## Route 53, SSL, load balancer: what they are
 
@@ -1348,8 +1464,57 @@
     - Together:
         browser -> sachinsblog.com (Route 53) -> load balancer (SSL
         certificate) -> Django server(s)
-        Also: the config still had ; on lines 1-2 and SWGIPath, so it would
-        have failed the same way.
+
+## AWS account: free plan, costs, closing, keeping it open
+
+    - My account is on the AWS Free plan (Billing page, 2 Nov 2026):
+        - Amount due 0.00 USD, "No charges while on the free plan."
+        - 140.00 USD credits, 162 days left (ends 12 Apr 2027).
+        - EB server, RDS etc. use up the credits, not my card. Only clicking
+          Upgrade switches to a paid plan.
+
+![AWS Billing: Free plan, 140 USD credits, 162 days left](screenshots/aws-billing-free-plan.png)
+
+    - Rough cost of this setup per month (Sydney, estimates):
+
+| Resource | About per month |
+|---|---|
+| EB server (t3.micro) | 8-10 USD |
+| Public IPv4 address | 3-4 USD |
+| RDS db.t4g.micro + 20 GiB | 18-21 USD |
+| Enhanced Monitoring, S3 | under 1 USD |
+| Total | about 30-37 USD (about 365-440 USD a year) |
+
+      -> 140 USD lasts roughly 4 months. Check "Credits remaining" every few
+      days to see the real burn rate. RDS is the biggest part.
+    - When the free plan ends (credits gone or the date passes):
+        - The account is CLOSED, not charged. Nothing runs any more.
+        - About 90 days grace: sign in and Upgrade -> everything comes back
+          (EB, RDS, S3), billed to the card from then on.
+        - After that: account and all resources deleted for good. Can't be
+          reopened, and the same email can't be used for a new AWS account.
+          A new account needs a different email, most likely without free
+          credits (once per person: card, phone, address are checked).
+        - Code is safe on GitHub; data in RDS/S3 is lost unless exported.
+    - Paid plan = pay-as-you-go: no monthly fee, pay only for what runs.
+      Empty account = 0 USD. (Support plans like Developer cost extra and
+      aren't needed; Basic support is free.)
+    - To keep the account for the future (e.g. launch something in 5 years):
+      a few weeks before 12 Apr 2027 (or before the credits run out):
+        1. Delete everything that costs money: terminate the EB environment,
+           delete the RDS database (no final snapshot unless wanted),
+           release unused Elastic IPs, delete unneeded S3 buckets
+           (incl. elasticbeanstalk-...).
+        2. Upgrade to the paid plan -> stays open, 0 USD while empty.
+        3. Security, the real risk of a paid account (someone running
+           servers on my card):
+            - MFA on the root user (Account -> Security credentials ->
+              Assign MFA device, authenticator app).
+            - No access keys for the root user.
+            - Zero spend budget: Billing -> Budgets -> Zero spend budget
+              (email if anything costs even 0.01 USD).
+            - Keep the card up to date (failed payments can suspend it).
+            - Log in once or twice a year to check the bill.
 
 ## Helpful resources
 
