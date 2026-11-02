@@ -1112,6 +1112,13 @@
     - Locally with runserver, the staticfiles app answers /static/ before the
       URL patterns are checked, so it serves the originals and this route
       isn't reached anyway.
+    - Zips deployed while this approach was in use (urls.py WITH both
+      static() lines; on EB it only worked with DEBUG on):
+        - code.zip (220 entries): .ebextensions/ (django.config), blog/,
+          my_site/, templates/, staticfiles/, uploads/, db.sqlite3,
+          manage.py, requirements.txt (SQLite database inside the zip)
+        - new_zip.zip (219 entries): the same without db.sqlite3,
+          settings.py with RDS Postgres, requirements.txt with psycopg
 
 ## Virtual environment for the project (venv)
 
@@ -1482,6 +1489,15 @@
       PC (checked: /files/posts/woods.jpg -> 404, app.css still found).
     - Deployed: zip again (with both .config files in .ebextensions/) ->
       upload to the EB environment.
+      The zip (separate_static_files.zip, 219 entries) had, at the top:
+        .ebextensions/ (django.config + static-files.config), blog/,
+        my_site/ (settings.py with Postgres, urls.py WITHOUT static()),
+        templates/, staticfiles/ (collectstatic output, for nginx /static),
+        uploads/ (post images, for nginx /files), manage.py
+      Not in it: db.sqlite3 (RDS now), the venv. Also missing:
+      requirements.txt (left out by mistake). The deploy still worked,
+      apparently with the packages from the previous deploy; every zip
+      should have it anyway.
       -> Site looks the same as before: CSS, header image, admin CSS and
       /files/ images -> 200, all with "Server: nginx". urls.py has no
       static() any more, so it's nginx serving them, not Django.
@@ -1860,6 +1876,42 @@
             - Keep the card up to date (failed payments can suspend it).
             - Log in once or twice a year to check the bill.
 
+## Database credentials from environment variables (safe to push)
+
+    - settings.py had the RDS username, password and endpoint written in it,
+      so it couldn't be committed (public repo). Now:
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.postgresql',
+                'NAME': 'postgres',
+                'USER': getenv("DB_USER"),
+                'PASSWORD': getenv("DB_PASSWORD"),
+                'HOST': getenv("DB_HOST"),
+                'PORT': '5432'
+            }
+        }
+    - Same idea as SECRET_KEY and the AWS keys: the code only names the
+      variable, the value lives outside git.
+    - The values are kept outside the project folder, in Downloads:
+        - django-blog-s3.env: all 7 variables (AWS_STORAGE_BUCKET_NAME,
+          AWS_S3_REGION_NAME, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
+          DB_USER, DB_PASSWORD, DB_HOST) for EB -> Environment properties
+          -> Import from .env file.
+        - django-blog-local-env.ps1: the same as $env:NAME = "value" lines
+          for my PC. In the venv terminal, before runserver / migrate /
+          collectstatic:
+            . C:\Users\scman\Downloads\django-blog-local-env.ps1
+          (the dot + space at the start = run it in THIS terminal, so the
+          variables stay set there)
+    - Before deploying code with this settings.py, the EB environment needs
+      DB_USER, DB_PASSWORD and DB_HOST too, or the live site can't reach
+      the database.
+    - Git history: the endpoint was also in this log and in a screenshot in
+      commits that were not pushed yet -> replaced with <RDS endpoint> /
+      greyed out in those commits too, before pushing.
+
+## Section 15 complete (Deployment)
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
@@ -1877,6 +1929,10 @@
         https://github.com/academind/django-practical-guide-course-code/tree/prj-data-models-zz-extra-files/slides
     - Section 14 code snapshots = branches starting with "prj-blog-uploads-sessions-...", e.g.:
         https://github.com/academind/django-practical-guide-course-code/tree/prj-blog-uploads-sessions-01-serving-uploaded-files/
+    - Section 15 (deployment) code snapshots = branches starting with "deployment-...", e.g.:
+        https://github.com/academind/django-practical-guide-course-code/tree/deployment-01-serving-static-files-with-django/
+    - Section 15 module slides:
+        https://github.com/academind/django-practical-guide-course-code/tree/deployment-zz-extra-files/slides
     - SQL vs NoSQL (Academind article):
         https://academind.com/articles/sql-vs-nosql
     - Virtual environments (Python docs), with the activate commands for
