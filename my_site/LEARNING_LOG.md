@@ -1060,6 +1060,25 @@
     - Both just expose an object called application. The server is told where
       it is (e.g. my_site.wsgi:application). This blog has no async code, so
       WSGI is enough.
+
+## Collecting static files: STATIC_ROOT + collectstatic
+
+    - settings.py:
+        STATIC_ROOT = BASE_DIR / "staticfiles"
+    - Then:
+        python manage.py collectstatic
+        -> 137 static files copied to '...\my_site\staticfiles'.
+    - It copies every static file from all the places Django looks into one
+      folder, so a web server or file service only has to serve that folder:
+        - static/ (STATICFILES_DIRS) -> app.css
+        - blog/static/ -> blog/*.css (5) and blog/images/sachin.jpg
+        - django.contrib.admin's own static folder -> admin/ (131 files: the
+          admin's CSS, JS, icons). The admin needs them too.
+    - STATIC_ROOT is where files are collected TO. STATICFILES_DIRS is where
+      extra files are collected FROM. They must be different folders.
+    - Development doesn't use staticfiles/: runserver still serves the
+      originals. After changing a CSS file, run collectstatic again before
+      deploying, or the copy is old.
     - Static files live in many folders (each app + STATICFILES_DIRS), so they
       also need one place to be gathered: STATIC_ROOT + manage.py collectstatic.
       my_site doesn't have STATIC_ROOT yet.
