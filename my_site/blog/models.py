@@ -32,6 +32,7 @@ class Post(models.Model):
     content = models.TextField(validators=[MinLengthValidator(10)])
     author = models.ForeignKey(Author, on_delete=models.SET_NULL, null=True, related_name="posts")
     tags = models.ManyToManyField(Tag)
+    view_count = models.PositiveIntegerField(default=0)
 
     def __str__(self):
         return self.title

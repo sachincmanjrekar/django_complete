@@ -5,6 +5,14 @@
                     <div class="post__content">
                         <h3>{{ post.title }}</h3>
                         <p>{{ post.excerpt }}</p>
+                        <p class="post__meta">
+                            {% if post.author %}By {{ post.author }} &middot; {% endif %}{{ post.comment_count }} comment{{ post.comment_count|pluralize }}
+                        </p>
+                        <div class="post__tags">
+                            {% for tag in post.tags.all %}
+                            <span class="post__tag">{{ tag }}</span>
+                            {% endfor %}
+                        </div>
                     </div>
                 </a>
             </article>

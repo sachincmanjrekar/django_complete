@@ -1912,6 +1912,135 @@
 
 ## Section 15 complete (Deployment)
 
+## Extra (interview prep): N+1 queries, select_related, prefetch_related
+
+    - The N+1 problem: 1 query loads a list of N rows, then the template
+      touches a relation on EACH row -> 1 more query per row = N+1 queries.
+      Django doesn't warn you: post.author / post.tags.all look free in a
+      template, but each one is a lazy database lookup.
+    - The post card (includes/post.html) now shows the author, the tags and
+      the number of comments:
+        {% if post.author %}By {{ post.author }} &middot; {% endif %}{{ post.comment_count }} comments
+        {% for tag in post.tags.all %}<span class="post__tag">{{ tag }}</span>{% endfor %}
+    - BEFORE (old views: model = Post, ordering = ["-date"]), 5 posts on /posts/:
+        SELECT ... FROM blog_post ORDER BY date DESC            1 query
+        SELECT ... FROM blog_author WHERE id = 1                x5 (post.author)
+        SELECT ... FROM blog_tag JOIN blog_post_tags
+                   WHERE post_id = <this post>                  x5 (post.tags.all)
+        -> 11 queries, measured with CaptureQueriesContext.
+           (+5 more if the count was done with post.comments.count = 16)
+        Same author 5 times, and it still asked 5 times - no cache across rows.
+        100 posts -> 201 queries.
+    - AFTER (blog/views.py):
+        def post_cards():
+            return (
+                Post.objects
+                .select_related("author")
+                .prefetch_related("tags")
+                .annotate(comment_count=Count("comments"))
+                .order_by("-date")
+            )
+        class AllPostsView(ListView):
+            def get_queryset(self):
+                return post_cards()
+        class StartingPageView(ListView):
+            def get_queryset(self):
+                return post_cards()[:3]
+      -> 2 queries, for 5 posts or 500 posts:
+        1) SELECT post.*, author.*, COUNT(comment.id) AS comment_count
+           FROM blog_post LEFT JOIN blog_author ... LEFT JOIN blog_comment ...
+           GROUP BY post.id ...
+        2) SELECT post_tags.post_id, tag.* FROM blog_tag JOIN blog_post_tags
+           WHERE post_tags.post_id IN (1, 2, 3, 4, 5)
+    - select_related vs prefetch_related (classic interview question):
+        select_related("author")   ForeignKey / OneToOne ("one" side).
+                                   SQL JOIN -> same query, author comes along
+                                   in each row. LEFT OUTER JOIN here because
+                                   author is null=True (SET_NULL).
+        prefetch_related("tags")   ManyToMany or reverse FK (post.comments).
+                                   A JOIN would repeat the post row once per
+                                   tag, so Django runs ONE extra query with
+                                   WHERE ... IN (all post ids) and matches the
+                                   tags to the posts in Python.
+      Rule of thumb: "single object on the other side" -> select_related,
+      "many objects on the other side" -> prefetch_related.
+    - The template must use post.tags.all for the prefetch to count.
+      post.tags.filter(...) or .order_by(...) in the template = NEW query per
+      post again (the prefetch cache only answers .all()). For a filtered
+      prefetch use Prefetch("tags", queryset=Tag.objects.filter(...)).
+    - annotate(comment_count=Count("comments")): the database counts, the
+      result is an attribute on every post (post.comment_count). One number
+      per row -> annotate. One number for the whole table -> aggregate()
+      (book_store: Book.objects.aggregate(Avg("rating"))).
+      Gotcha: two Counts over two different multi-valued relations in one
+      query (Count("comments"), Count("tags")) multiply each other through
+      the JOINs -> wrong numbers. Use Count(..., distinct=True) or a
+      Subquery. Here tags are prefetched, not counted, so it's fine.
+    - Order matters a little: annotate() before [:3] - the slice is the
+      LIMIT, it must be the last step (you can't filter/annotate after
+      slicing a QuerySet).
+
+## Extra: the single post page (select_related + F expression)
+
+    - get_object_or_404 accepts a QuerySet, not just a model:
+        def get_post(self, slug):
+            return get_object_or_404(Post.objects.select_related("author"), slug=slug)
+      post.author in the template (name + mailto: link) needs no extra query.
+      Tags and comments are still 1 query each - that's fine, it's ONE post,
+      not N. N+1 only matters inside loops.
+    - New field: view_count = models.PositiveIntegerField(default=0)
+      -> migration 0004_post_view_count (default=0 fills the existing rows).
+      The page shows "Read 3 times".
+    - Counting views the WRONG way (race condition):
+        post.view_count += 1
+        post.save()
+      Two visitors load the post at the same time, both read 7, both save 8
+      -> one view is lost. Python did the + 1 with an old value.
+    - The RIGHT way: an F() expression, the database does the + 1:
+        Post.objects.filter(pk=post.pk).update(view_count=F("view_count") + 1)
+      SQL: UPDATE blog_post SET view_count = view_count + 1 WHERE id = 3
+      Each UPDATE reads the current value itself -> no lost updates.
+      (Also: .update() doesn't call save() and doesn't touch date/auto_now.)
+    - After the update the post object in memory still has the OLD number,
+      so the view adds 1 itself for the page:
+        post.view_count += 1
+      (or post.refresh_from_db(fields=["view_count"]) = 1 more query).
+    - F() also compares two values of the same row inside the query, e.g.
+      posts with at least as many comments as views:
+        Post.objects.annotate(comment_count=Count("comments")).filter(
+            comment_count__gte=F("view_count"))
+
+## Extra: Read Later page (id__in + only)
+
+    - Already good: Post.objects.filter(id__in=stored_posts) = ONE query for
+      all saved ids. The N+1 version would be a loop:
+        [Post.objects.get(id=i) for i in stored_posts]   -> 1 query per id
+    - Added only("title", "slug"): the page shows only the link, so SQL
+      selects just id, title, slug (no content TextField).
+      Gotcha: touching a field that only() left out (post.content) loads it
+      with an extra query PER ROW -> a hidden N+1. defer("content") is the
+      opposite (everything except content).
+
+## Extra: tests that count queries (blog/tests.py)
+
+    - The first real tests in the repo. assertNumQueries fails if a view
+      runs more queries than expected - it catches an N+1 coming back:
+        with self.assertNumQueries(2):
+            self.client.get(reverse("posts-page"))
+    - Other tests: 1 post vs 20 posts -> same number of queries; the plain
+      Post.objects.all() loop -> 1 + 3*5 = 16 queries (the "before");
+      view_count goes 0 -> 2 after two visits; two F() updates on two copies
+      of the same post -> 2 (nothing lost).
+    - settings.py only has Postgres (RDS), and the test runner creates a
+      separate test_postgres database there. To run the tests:
+        python manage.py test blog
+      with DB_USER / DB_PASSWORD / DB_HOST set (the user needs permission
+      to create a database), or against a local Postgres.
+    - Finding N+1s while browsing: django-debug-toolbar (SQL panel shows the
+      count and the duplicated queries), or in the shell:
+        from django.db import connection, reset_queries
+        (connection.queries only fills when DEBUG = True)
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
@@ -1943,3 +2072,9 @@
         https://docs.djangoproject.com/en/3.1/topics/http/urls/#path-converters
     - PEP 8 (Python style guide):
         https://peps.python.org/pep-0008/
+    - QuerySet API: select_related / prefetch_related / annotate / only:
+        https://docs.djangoproject.com/en/6.1/ref/models/querysets/
+    - Database access optimization (N+1, F, update):
+        https://docs.djangoproject.com/en/6.1/topics/db/optimization/
+    - F() expressions and race conditions:
+        https://docs.djangoproject.com/en/6.1/ref/models/expressions/#f-expressions

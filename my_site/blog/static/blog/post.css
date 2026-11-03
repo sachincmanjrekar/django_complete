@@ -41,3 +41,29 @@
 .post:active time {
   color: white;
 }
+
+.post__meta {
+  color: #666666;
+  font-size: 0.85rem;
+  margin: 0.25rem 0;
+}
+
+.post__tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+.post__tag {
+  background-color: #e8dcf7;
+  color: #390281;
+  padding: 0.1rem 0.5rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+}
+
+.post:hover .post__meta,
+.post:active .post__meta {
+  color: white;
+}

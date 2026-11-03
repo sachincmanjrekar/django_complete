@@ -1,6 +1,7 @@
 from django.shortcuts import render, get_object_or_404
 from django.http import HttpResponseRedirect
 from django.urls import reverse
+from django.db.models import Count, F
 from .models import Post
 from django.views.generic import ListView
 from .forms import CommentForm
@@ -8,23 +9,33 @@ from django.views import View
 # Create your views here.
 
 
+def post_cards():
+    # The post card shows the author, the tags and the number of comments.
+    # Without the next three lines every card would run 3 more queries
+    # (N+1 problem). See "N+1 queries" in LEARNING_LOG.md.
+    return (
+        Post.objects
+        .select_related("author")               # FK  -> JOIN, same query
+        .prefetch_related("tags")               # M2M -> 1 extra query for ALL posts
+        .annotate(comment_count=Count("comments"))  # COUNT + GROUP BY in SQL
+        .order_by("-date")
+    )
+
+
 class StartingPageView(ListView):
     template_name = "blog/index.html"
-    model = Post
-    ordering = ["-date"]
     context_object_name = "posts"
 
     def get_queryset(self):
-        queryset = super().get_queryset()
-        data = queryset[:3]
-        return data
+        return post_cards()[:3]
 
 
 class AllPostsView(ListView):
     template_name = "blog/all-posts.html"
-    model = Post
-    ordering = ["-date"]
     context_object_name = "all_posts"
+
+    def get_queryset(self):
+        return post_cards()
 
 
 class SinglePostView(View):
@@ -37,8 +48,17 @@ class SinglePostView(View):
 
         return is_saved_for_later
 
+    def get_post(self, slug):
+        # select_related: post.author in the template needs no extra query
+        return get_object_or_404(Post.objects.select_related("author"), slug=slug)
+
     def get(self,request,slug):
-        post = get_object_or_404(Post, slug=slug)
+        post = self.get_post(slug)
+
+        # F(): the database adds 1 itself (UPDATE ... SET view_count = view_count + 1).
+        # No lost updates when two people open the post at the same moment.
+        Post.objects.filter(pk=post.pk).update(view_count=F("view_count") + 1)
+        post.view_count += 1  # the object in memory still has the old value
 
         context = {
             "post":post,
@@ -52,7 +72,7 @@ class SinglePostView(View):
     
     def post(self, request, slug):
         comment_form = CommentForm(request.POST)
-        post = get_object_or_404(Post, slug=slug)
+        post = self.get_post(slug)
 
         if comment_form.is_valid():
             comment = comment_form.save(commit=False)
@@ -83,7 +103,9 @@ class ReadLaterView(View):
             context["has_posts"] = False
 
         else:
-            posts = Post.objects.filter(id__in=stored_posts)
+            # 1 query for all stored posts (id__in), not 1 per id.
+            # only(): the page shows just the title and the link.
+            posts = Post.objects.filter(id__in=stored_posts).only("title", "slug")
             context["posts"] = posts
             context["has_posts"] = True
 
