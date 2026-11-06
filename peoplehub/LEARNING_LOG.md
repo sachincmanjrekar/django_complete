@@ -464,6 +464,41 @@
 
 ![Slide: ModelSerializer, class Meta with fields / exclude](screenshots/modelserializer-meta-slide.png)
 
+## PersonModelSerializer: the views use ModelSerializer now
+
+    - api/serializers.py, new class below PersonSerializer:
+        class PersonModelSerializer(serializers.ModelSerializer):
+            class Meta:
+                model = Person
+                fields = ['name', 'age', 'city']
+      No fields written by hand, no create() / update(): ModelSerializer
+      reads the fields from the Person model (max_length=100,
+      PositiveIntegerField ...) and has create() and update() built in.
+    - api/views.py: PersonSerializer -> PersonModelSerializer everywhere:
+        from .serializers import PersonSerializer, PersonModelSerializer
+
+        PUT:   PersonModelSerializer(data, data=parsed_data)
+        PATCH: PersonModelSerializer(data, data=parsed_data, partial=True)
+        POST:  PersonModelSerializer(data=parsed_data)
+        GET /multipleobj/: PersonModelSerializer(data, many=True)
+      The views work the same as with PersonSerializer.
+
+    - Error: GET /singleobj/1/ in the browser ->
+        ValueError at /singleobj/1/
+        The view api.views.single_object_view didn't return an HttpResponse
+        object. It returned None instead.
+      single_object_view only returned something for PUT and PATCH. A GET
+      skipped both ifs and reached the end of the function -> None.
+    - Fix: a GET response at the end of single_object_view:
+        # GET: return the single object as JSON
+        serializer = PersonModelSerializer(data)
+        return JsonResponse(serializer.data)
+      No safe=False needed: one object -> a dict.
+    - Checked:
+        GET /singleobj/1/  -> 200 {"name": "Sachin vee", "age": 44, "city": "usa"}
+        GET /singleobj/22/ -> 404
+        GET /multipleobj/  -> 200, the full list
+
 ## Helpful resources
 
     - Django docs:

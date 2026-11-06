@@ -17,4 +17,10 @@ class PersonSerializer(serializers.Serializer):
         instance.age = validated_data.get('age', instance.age)
         instance.city = validated_data.get('city', instance.city)
         instance.save()
-        return instance 
+        return instance
+
+
+class PersonModelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Person
+        fields = ['name', 'age', 'city']
