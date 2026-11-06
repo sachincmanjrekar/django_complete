@@ -441,6 +441,29 @@
       Now: /singleobj/22/ -> 404 Not Found, the right answer for an id that
       doesn't exist. Ids 1-5 work as before.
 
+## ModelSerializer (course slides)
+
+    - ModelSerializer = a DRF serializer that is a shortcut: it creates the
+      serializer fields automatically from a Django model's fields.
+    - Key points:
+        - creates serializer fields from the model fields automatically
+        - uses the model's validations automatically
+        - includes default create() and update() methods
+        - less code to write
+    - Syntax:
+        class PersonSerializer(serializers.ModelSerializer):
+            class Meta:
+                model = Account
+                fields = ['name', 'city', 'age']    # a list or "__all__"
+                # or:
+                exclude = ['users']                 # all fields except these
+    - Define either fields or exclude, not both at once, otherwise
+      AssertionError.
+
+![Slide: ModelSerializer, key points](screenshots/modelserializer-slide.png)
+
+![Slide: ModelSerializer, class Meta with fields / exclude](screenshots/modelserializer-meta-slide.png)
+
 ## Helpful resources
 
     - Django docs:
