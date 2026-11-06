@@ -99,6 +99,18 @@
 
 ![Slide: Serializers summary](screenshots/serializers-summary-slide.png)
 
+## First serializer: api/serializers.py (serializers.Serializer)
+
+    - New file api/serializers.py:
+        from rest_framework import serializers
+
+        class PersonSerializer(serializers.Serializer):
+            name = serializers.CharField(max_length=100)
+            age = serializers.IntegerField()
+            city = serializers.CharField(max_length=100)
+    - With the plain Serializer class every field is written by hand, matching
+      the Person model fields (name, age, city).
+
 ## Helpful resources
 
     - Django docs:
