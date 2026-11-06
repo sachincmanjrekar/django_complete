@@ -159,6 +159,35 @@
     - /singleobj (no slash) -> 301 redirect to /singleobj/ (APPEND_SLASH).
     - / -> 404, there is no route for the empty path in api/urls.py.
 
+## Returning JSON: JSONRenderer + HttpResponse
+
+    - api/views.py, both views now return a response instead of print():
+        from rest_framework.renderers import JSONRenderer
+        from django.http import HttpResponse
+
+        def single_object_view(request):
+            data = Person.objects.get(id=1)
+            serializer = PersonSerializer(data)
+            json_data = JSONRenderer().render(serializer.data)   # Python data -> JSON
+            return HttpResponse(json_data, content_type='application/json')
+
+        def multiple_objects_view(request):
+            data = Person.objects.all()
+            serializer = PersonSerializer(data, many=True)
+            json_data = JSONRenderer().render(serializer.data)
+            return HttpResponse(json_data, content_type='application/json')
+    - The full chain now:
+        model object / queryset --serializer--> Python dict / list
+        --JSONRenderer().render()--> JSON (bytes) --HttpResponse--> browser
+    - content_type='application/json' tells the browser it's JSON, not HTML.
+    - The 500 error is gone. In the browser:
+        /singleobj/   -> {"name": "Sachin", "age": 28, "city": "Karwar"}
+        /multipleobj/ -> a JSON list with Sachin and vettel
+
+![Browser: /singleobj/ returns one Person as JSON](screenshots/singleobj-json-response.png)
+
+![Browser: /multipleobj/ returns all Persons as a JSON list](screenshots/multipleobj-json-response.png)
+
 ## Helpful resources
 
     - Django docs:
