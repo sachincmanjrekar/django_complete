@@ -250,6 +250,64 @@
 
 ![Postman: POST to /multipleobj/ with a JSON body](screenshots/postman-post-multipleobj.png)
 
+## Saving the data (course slide)
+
+    - After validation, .save() is called.
+    - .save() internally:
+        - uses the validated data
+        - calls create() or update()
+    - We never call create() or update() directly.
+
+![Slide: De-serialization, saving the data](screenshots/deserialization-save-slide.png)
+
+## De-serializing the POST: is_valid() + save() + create()
+
+    - api/views.py, the POST part now saves the new Person:
+        from django.http import HttpResponse, JsonResponse
+        from rest_framework import status
+
+        if request.method == 'POST':
+            json_data = request.body
+            stream = io.BytesIO(json_data)
+            parsed_data = JSONParser().parse(stream)
+            serializer = PersonSerializer(data=parsed_data)   # data= -> de-serialize
+            if serializer.is_valid():
+                serializer.save()
+                return JsonResponse({"created": "success"}, content_type='application/json',
+                                    status=status.HTTP_201_CREATED)
+            else:
+                return JsonResponse(serializer.errors, content_type='application/json',
+                                    status=status.HTTP_400_BAD_REQUEST)
+    - PersonSerializer(obj)        -> serialize (model -> Python data)
+      PersonSerializer(data=dict)  -> de-serialize (Python data -> model)
+    - is_valid() checks the data against the serializer fields
+      (max_length, IntegerField, required). Errors go to serializer.errors.
+    - JsonResponse = HttpResponse that turns a dict into JSON by itself.
+    - status.HTTP_201_CREATED / HTTP_400_BAD_REQUEST: named status codes
+      from DRF instead of plain 201 / 400.
+
+    - Error 1: POST in Postman -> 500 Internal Server Error,
+        NotImplementedError at /multipleobj/
+      save() calls create(), but the plain Serializer class doesn't know how
+      to create a Person, so create() must be written by us.
+
+![Postman: 500 NotImplementedError, create() missing](screenshots/postman-post-notimplementederror.png)
+
+    - Fix, api/serializers.py:
+        from .models import Person
+
+        class PersonSerializer(serializers.Serializer):
+            ...
+            def create(self, validated_data):
+                return Person.objects.create(**validated_data)
+      validated_data = the checked dict {'name': 'max', 'age': 22, 'city': 'holland'}
+      **validated_data -> Person.objects.create(name='max', age=22, city='holland')
+
+    - Same POST again -> 201 Created, {"created": "success"}.
+      max is now in the database (id 3, next to Sachin and vettel).
+
+![Postman: 201 Created after adding create()](screenshots/postman-post-201-created.png)
+
 ## Helpful resources
 
     - Django docs:
