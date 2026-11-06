@@ -60,6 +60,45 @@
       'rest_framework' (the folder name in site-packages).
     - Typo fixed: 'django.contrib.staticfiles',, (two commas) -> one comma.
 
+## Person model + migrate + admin
+
+    - api/models.py:
+        class Person(models.Model):
+            name = models.CharField(max_length=100)
+            age = models.PositiveIntegerField()
+            city = models.CharField(max_length=100)
+    - python manage.py makemigrations -> api/migrations/0001_initial.py
+      python manage.py migrate         -> creates db.sqlite3 with the tables
+    - python manage.py createsuperuser -> username admin.
+    - First Person row added in the admin.
+    - api/admin.py:
+        class PersonAdmin(admin.ModelAdmin):
+            list_display = ("name", "age", "city")
+
+        admin.site.register(Person, PersonAdmin)
+    - Problem: the admin list showed only "Person object (1)", not the fields.
+        1. admin.site.register(Person) without PersonAdmin -> the class was
+           never used. Fix: admin.site.register(Person, PersonAdmin).
+        2. list_display = "__all__" is not allowed ("__all__" only works for
+           fields in a ModelForm). Fix: list the field names one by one.
+
+## Serializers (course slides)
+
+    - Serializers convert complex data (querysets / model objects) into
+      Python native data types, which can then be rendered as JSON, XML or
+      other content types.
+    - Two steps:
+        querysets / model object --Serialization--> {'name': 'John', 'id': 1}
+        {'name': 'John', 'id': 1} --Rendering--> JSON, XML, ...
+    - Serialization = converting queryset / model objects into Python native
+      data types.
+    - A serializer is a Python class. Three kinds:
+        Serializer, ModelSerializer, HyperlinkedModelSerializer
+
+![Slide: Serializers](screenshots/serializers-slide.png)
+
+![Slide: Serializers summary](screenshots/serializers-summary-slide.png)
+
 ## Helpful resources
 
     - Django docs:
