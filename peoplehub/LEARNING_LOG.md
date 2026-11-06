@@ -430,6 +430,17 @@
       reached it, single_object_view only handled PUT and returned None.
       Moved into single_object_view, next to PUT.
 
+## get_object_or_404: 404 instead of a 500 crash
+
+    - api/views.py:
+        from django.shortcuts import get_object_or_404
+
+        def single_object_view(request, id):
+            data = get_object_or_404(Person, id=id)
+    - Before: Person.objects.get(id=22) -> DoesNotExist -> 500 error page.
+      Now: /singleobj/22/ -> 404 Not Found, the right answer for an id that
+      doesn't exist. Ids 1-5 work as before.
+
 ## Helpful resources
 
     - Django docs:
