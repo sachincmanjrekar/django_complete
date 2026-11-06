@@ -499,6 +499,55 @@
         GET /singleobj/22/ -> 404
         GET /multipleobj/  -> 200, the full list
 
+## Function based API views: @api_view + Response
+
+    - Course slide: @api_view(['GET', 'POST']) above a function view, one
+      if request.method == ... block per method, each returns Response(...).
+      A method that is not in the list -> 405 Method Not Allowed.
+
+![Slide: Function based API view, @api_view](screenshots/api-view-decorator-slide.png)
+
+    - api/views.py:
+        from rest_framework.decorators import api_view
+        from rest_framework.response import Response
+
+        @api_view(['GET', 'PUT', 'PATCH'])
+        def single_object_view(request, id):
+            data = get_object_or_404(Person, id=id)
+            if request.method == "PUT":
+                ...
+                return Response({"updated": "success"}, status=status.HTTP_200_OK)
+            if request.method == "PATCH":
+                ...
+            if request.method == "GET":
+                serializer = PersonModelSerializer(data)
+                return Response(serializer.data)
+
+        @api_view(['GET', 'POST'])
+        def multiple_objects_view(request):
+            if request.method == 'POST':
+                ...
+                return Response({"created": "success"}, status=status.HTTP_201_CREATED)
+            if request.method == 'GET':
+                data = Person.objects.all()
+                serializer = PersonModelSerializer(data, many=True)
+                return Response(serializer.data)
+    - Changes compared to before:
+        - @csrf_exempt removed -> @api_view; DRF views skip Django's CSRF
+          check (unless logged in with a session).
+        - JsonResponse -> Response (DRF). Response renders the data itself,
+          a list needs no safe=False.
+        - GET is its own if block now, like PUT / PATCH / POST.
+    - Test: PUT to /multipleobj/ (only GET and POST allowed there):
+        curl --location --request PUT 'http://127.0.0.1:8000/multipleobj/' \
+        --header 'Content-Type: application/json' \
+        --data '{
+            "name": "Sachin max"
+        }'
+      -> 405 {"detail": "Method \"PUT\" not allowed."}
+      @api_view rejects the method before our code runs. (Without it, the
+      view would have returned None -> 500.)
+
 ## Helpful resources
 
     - Django docs:

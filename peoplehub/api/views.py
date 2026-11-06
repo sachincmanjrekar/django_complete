@@ -8,9 +8,11 @@ from rest_framework.parsers import JSONParser
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
 from django.shortcuts import get_object_or_404
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
 
 # Create your views here.
-@csrf_exempt
+@api_view(['GET', 'PUT', 'PATCH'])
 def single_object_view(request, id):
     data = get_object_or_404(Person, id=id)  # Fetch a single object (for example, with id=1)
 
@@ -21,9 +23,9 @@ def single_object_view(request, id):
         serializer = PersonModelSerializer(data, data=parsed_data)  # Deserialize the data
         if serializer.is_valid():
             serializer.save()  # Save the updated object to the database
-            return JsonResponse({"updated": "success"}, content_type='application/json', status=status.HTTP_200_OK)  # Return the updated object as JSON response
+            return Response({"updated": "success"}, content_type='application/json', status=status.HTTP_200_OK)  # Return the updated object as JSON response
         else:
-            return JsonResponse(serializer.errors, content_type='application/json', status=status.HTTP_400_BAD_REQUEST)  # Return validation errors as JSON response
+            return Response(serializer.errors, content_type='application/json', status=status.HTTP_400_BAD_REQUEST)  # Return validation errors as JSON response
 
     if request.method == "PATCH":
         stream = io.BytesIO(request.body)  # Create a BytesIO stream from the request body
@@ -31,16 +33,18 @@ def single_object_view(request, id):
         serializer = PersonModelSerializer(data, data=parsed_data, partial=True)  # Deserialize the data with partial update
         if serializer.is_valid():
             serializer.save()  # Save the updated object to the database
-            return JsonResponse({"updated": "success"}, content_type='application/json', status=status.HTTP_200_OK)  # Return the updated object as JSON response
+            return Response({"updated": "success"}, content_type='application/json', status=status.HTTP_200_OK)  # Return the updated object as JSON response
         else:
-            return JsonResponse(serializer.errors, content_type='application/json', status=status.HTTP_400_BAD_REQUEST)  # Return validation errors as JSON response
+            return Response(serializer.errors, content_type='application/json', status=status.HTTP_400_BAD_REQUEST)  # Return validation errors as JSON response
 
-    # GET: return the single object as JSON
-    serializer = PersonModelSerializer(data)
-    return JsonResponse(serializer.data)
+    if request.method == "GET":
+
+        # GET: return the single object as JSON
+        serializer = PersonModelSerializer(data)
+        return Response(serializer.data)
 
 
-@csrf_exempt
+@api_view(['GET', 'POST'])
 def multiple_objects_view(request):
     if request.method == 'POST':
         # Handle POST request to create a new Person object
@@ -51,11 +55,11 @@ def multiple_objects_view(request):
         if serializer.is_valid():
             # If the data is valid, create a new Person object
             serializer.save()  # Save the new object to the database
-            return JsonResponse({"created": "success"}, content_type='application/json', status=status.HTTP_201_CREATED)  # Return the created object as JSON response
+            return Response({"created": "success"}, content_type='application/json', status=status.HTTP_201_CREATED)  # Return the created object as JSON response
         else:
-            return JsonResponse(serializer.errors, content_type='application/json', status=status.HTTP_400_BAD_REQUEST)  # Return validation errors as JSON response
+            return Response(serializer.errors, content_type='application/json', status=status.HTTP_400_BAD_REQUEST)  # Return validation errors as JSON response
 
-        
-    data = Person.objects.all()  # Fetch all objects
-    serializer = PersonModelSerializer(data, many=True)
-    return JsonResponse(serializer.data, content_type='application/json', safe=False)  # Return as JSON response
+    if request.method == 'GET':
+        data = Person.objects.all()  # Fetch all objects
+        serializer = PersonModelSerializer(data, many=True)
+        return Response(serializer.data, content_type='application/json')  # Return as JSON response
