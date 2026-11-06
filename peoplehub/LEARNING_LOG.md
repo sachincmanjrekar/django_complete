@@ -111,9 +111,59 @@
     - With the plain Serializer class every field is written by hand, matching
       the Person model fields (name, age, city).
 
+## Serialization: 3 steps (course slide)
+
+    1. Fetch an object or queryset from the database with the Django ORM,
+       e.g. Book.objects.all().
+    2. Create a serializer instance: pass the object or queryset,
+       use many=True if it's a queryset.
+    3. The serializer converts the model instance(s) to Python native data:
+       access it with serializer.data.
+    - Key point: Serializer -> converts Model -> Python data.
+
+![Slide: Serialization, 3 steps](screenshots/serialization-steps-slide.png)
+
+## Serializing one object and many objects (views + urls)
+
+    - api/views.py:
+        from .models import Person
+        from .serializers import PersonSerializer
+
+        def single_object_view(request):
+            data = Person.objects.get(id=1)        # one object
+            serializer = PersonSerializer(data)
+            print(serializer.data)
+
+        def multiple_objects_view(request):
+            data = Person.objects.all()             # queryset
+            serializer = PersonSerializer(data, many=True)
+            print(serializer.data)
+    - api/urls.py (new file):
+        urlpatterns = [
+            path('singleobj/', views.single_object_view, name='single_object_view'),
+            path('multipleobj/', views.multiple_objects_view, name='multiple_objects_view'),
+        ]
+    - peoplehub/urls.py:
+        path('', include('api.urls')),
+    - Added a second Person in the admin (vettel, 45, hamburg).
+    - Output in the runserver terminal:
+        /singleobj/   -> {'name': 'Sachin', 'age': 28, 'city': 'Karwar'}
+        /multipleobj/ -> [{'name': 'Sachin', 'age': 28, 'city': 'Karwar'},
+                          {'name': 'vettel', 'age': 45, 'city': 'hamburg'}]
+        One object -> a dict. many=True -> a list of dicts.
+    - The browser shows an error (500), because the views only print and
+      don't return anything:
+        ValueError: The view api.views.multiple_objects_view didn't return an
+        HttpResponse object. It returned None instead.
+      Every Django view must return a response.
+    - /singleobj (no slash) -> 301 redirect to /singleobj/ (APPEND_SLASH).
+    - / -> 404, there is no route for the empty path in api/urls.py.
+
 ## Helpful resources
 
     - Django docs:
         https://docs.djangoproject.com/en/6.1/
     - Django REST Framework (DRF) docs:
         https://www.django-rest-framework.org/
+    - DRF serializer fields (CharField, IntegerField, ...):
+        https://www.django-rest-framework.org/api-guide/fields/
