@@ -280,6 +280,8 @@
                                     status=status.HTTP_400_BAD_REQUEST)
     - PersonSerializer(obj)        -> serialize (model -> Python data)
       PersonSerializer(data=dict)  -> de-serialize (Python data -> model)
+      Rule: if data= is passed, the serializer de-serializes;
+            otherwise it serializes.
     - is_valid() checks the data against the serializer fields
       (max_length, IntegerField, required). Errors go to serializer.errors.
     - JsonResponse = HttpResponse that turns a dict into JSON by itself.
@@ -307,6 +309,62 @@
       max is now in the database (id 3, next to Sachin and vettel).
 
 ![Postman: 201 Created after adding create()](screenshots/postman-post-201-created.png)
+
+## Wrong types still pass: serializer fields convert values
+
+    - POST with a number as name and text as age:
+        curl --location 'http://127.0.0.1:8000/multipleobj/' \
+        --header 'Content-Type: application/json' \
+        --data '{
+            "name": 456,
+            "age": "44",
+            "city": "france"
+        }'
+      -> 201 Created, saved as id 5: name '456', age 44, city 'france'.
+    - Why it passes: the fields convert values to the right type when they can:
+
+        | Field                  | Sent          | DRF does                        | Saved as |
+        |------------------------|---------------|---------------------------------|----------|
+        | name = CharField()     | 456 (number)  | number -> text                  | "456"    |
+        | age = IntegerField()   | "44" (text)   | text that is a whole number -> int | 44    |
+        | city = CharField()     | "france"      | already text                    | "france" |
+
+    - What would fail is_valid():
+        "age": "forty"     -> "A valid integer is required."
+        "age": 4.5         -> fails too, no rounding
+        "name": true       -> "Not a valid string." (true/false are rejected)
+        a missing field    -> "This field is required."
+        name > 100 chars   -> fails max_length
+    - The fields only check type and limits (like length). Rules about the
+      meaning (e.g. "a name must not be only digits") are something to add
+      ourselves with validation methods on the serializer.
+
+## JsonResponse instead of JSONRenderer + HttpResponse (safe=False)
+
+    - api/views.py, the GET responses now use JsonResponse, which turns the
+      Python data into JSON by itself (no JSONRenderer needed):
+        def single_object_view(request):
+            ...
+            return JsonResponse(serializer.data, content_type='application/json')
+
+        def multiple_objects_view(request):
+            ...
+            serializer = PersonSerializer(data, many=True)
+            return JsonResponse(serializer.data, content_type='application/json', safe=False)
+    - Error: GET /multipleobj/ before adding safe=False ->
+        TypeError at /multipleobj/
+        In order to allow non-dict objects to be serialized set the safe
+        parameter to False.
+      JsonResponse accepts only a dict by default (safe=True). With
+      many=True, serializer.data is a list -> error.
+      single_object_view works without it: one object -> a dict.
+
+![Browser: TypeError, JsonResponse needs safe=False for a list](screenshots/jsonresponse-safe-typeerror.png)
+
+    - Fix: safe=False -> the list is allowed, /multipleobj/ shows all Persons
+      as JSON again (now with max and ocon too).
+
+![Browser: /multipleobj/ with safe=False returns the JSON list](screenshots/jsonresponse-safe-false-list.png)
 
 ## Helpful resources
 
