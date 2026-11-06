@@ -366,6 +366,70 @@
 
 ![Browser: /multipleobj/ with safe=False returns the JSON list](screenshots/jsonresponse-safe-false-list.png)
 
+## Updating a Person: update() + PUT and PATCH
+
+    - api/serializers.py, update() next to create():
+        def update(self, instance, validated_data):
+            instance.name = validated_data.get('name', instance.name)
+            instance.age = validated_data.get('age', instance.age)
+            instance.city = validated_data.get('city', instance.city)
+            instance.save()
+            return instance
+      instance = the existing Person from the database.
+      .get('name', instance.name) -> the new value if it was sent, otherwise
+      keep the old one.
+    - save() decides which one runs:
+        PersonSerializer(data=...)            -> save() calls create()
+        PersonSerializer(instance, data=...)  -> save() calls update()
+    - api/urls.py, the id now comes from the URL:
+        path('singleobj/<int:id>/', views.single_object_view, name='single_object_view'),
+    - api/views.py:
+        @csrf_exempt
+        def single_object_view(request, id):
+            data = Person.objects.get(id=id)
+            if request.method == "PUT":
+                stream = io.BytesIO(request.body)
+                parsed_data = JSONParser().parse(stream)
+                serializer = PersonSerializer(data, data=parsed_data)
+                if serializer.is_valid():
+                    serializer.save()
+                    return JsonResponse({"updated": "success"}, content_type='application/json',
+                                        status=status.HTTP_200_OK)
+                else:
+                    return JsonResponse(serializer.errors, content_type='application/json',
+                                        status=status.HTTP_400_BAD_REQUEST)
+
+            if request.method == "PATCH":
+                ...same, but:
+                serializer = PersonSerializer(data, data=parsed_data, partial=True)
+    - PUT vs PATCH:
+        PUT   -> full update, all fields must be sent (missing field -> 400
+                 "This field is required.")
+        PATCH -> partial update, partial=True, only the sent fields change
+    - Person 1 updated: now name 'Sachin cm', age 23, city 'usa'.
+
+    - Error 1: PUT to http://127.0.0.1:8000/singleobj/1 (no slash) -> 500
+        RuntimeError: You called this URL via PUT, but the URL doesn't end in
+        a slash and you have APPEND_SLASH set. Django can't redirect to the
+        slash URL while maintaining PUT data.
+      For GET, Django redirects to the URL with a slash (301). For PUT it
+      can't, the body would be lost. Fix: /singleobj/1/ with the slash.
+    - Error 2: PUT to /singleobj/1/ -> 403
+        Forbidden (CSRF cookie not set.)
+      Django checks CSRF on every request that changes data (POST, PUT,
+      PATCH, DELETE). Postman sends no CSRF token. Fix: @csrf_exempt on
+      single_object_view too (multiple_objects_view already had it).
+    - Error 3: PATCH /singleobj/22/ -> 500
+        DoesNotExist at /singleobj/22/
+        Person matching query does not exist.
+      Only ids 1-5 exist. Person.objects.get(id=22) on line 15 crashes before
+      the PATCH code or is_valid() run, so the body (even "age": "dsfgdes")
+      is never checked. Fix: use an id that exists, e.g. /singleobj/1/.
+    - On the way: the PATCH code was first written in multiple_objects_view
+      (id taken from the JSON body). A PATCH to /singleobj/<id>/ never
+      reached it, single_object_view only handled PUT and returned None.
+      Moved into single_object_view, next to PUT.
+
 ## Helpful resources
 
     - Django docs:

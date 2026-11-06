@@ -10,11 +10,30 @@ from rest_framework import status
 
 
 # Create your views here.
-def single_object_view(request):
-    data = Person.objects.get(id=1)  # Fetch a single object (for example, with id=1)
-    serializer = PersonSerializer(data)
-    json_data = JSONRenderer().render(serializer.data)  # Convert to JSON
-    return JsonResponse(serializer.data, content_type='application/json')  # Return as JSON response
+@csrf_exempt
+def single_object_view(request, id):
+    data = Person.objects.get(id=id)  # Fetch a single object (for example, with id=1)
+    if request.method == "PUT":
+
+        stream = io.BytesIO(request.body)  # Create a BytesIO stream from the request body
+        parsed_data = JSONParser().parse(stream)  # Parse the JSON data
+        serializer = PersonSerializer(data, data=parsed_data)  # Deserialize the data
+        if serializer.is_valid():
+            serializer.save()  # Save the updated object to the database
+            return JsonResponse({"updated": "success"}, content_type='application/json', status=status.HTTP_200_OK)  # Return the updated object as JSON response
+        else:
+            return JsonResponse(serializer.errors, content_type='application/json', status=status.HTTP_400_BAD_REQUEST)  # Return validation errors as JSON response
+
+    if request.method == "PATCH":
+        stream = io.BytesIO(request.body)  # Create a BytesIO stream from the request body
+        parsed_data = JSONParser().parse(stream)  # Parse the JSON data
+        serializer = PersonSerializer(data, data=parsed_data, partial=True)  # Deserialize the data with partial update
+        if serializer.is_valid():
+            serializer.save()  # Save the updated object to the database
+            return JsonResponse({"updated": "success"}, content_type='application/json', status=status.HTTP_200_OK)  # Return the updated object as JSON response
+        else:
+            return JsonResponse(serializer.errors, content_type='application/json', status=status.HTTP_400_BAD_REQUEST)  # Return validation errors as JSON response
+
 
 @csrf_exempt
 def multiple_objects_view(request):
@@ -30,6 +49,7 @@ def multiple_objects_view(request):
             return JsonResponse({"created": "success"}, content_type='application/json', status=status.HTTP_201_CREATED)  # Return the created object as JSON response
         else:
             return JsonResponse(serializer.errors, content_type='application/json', status=status.HTTP_400_BAD_REQUEST)  # Return validation errors as JSON response
+
         
     data = Person.objects.all()  # Fetch all objects
     serializer = PersonSerializer(data, many=True)
