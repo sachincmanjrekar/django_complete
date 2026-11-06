@@ -188,6 +188,68 @@
 
 ![Browser: /multipleobj/ returns all Persons as a JSON list](screenshots/multipleobj-json-response.png)
 
+## De-serialization (course slides)
+
+    - Serializers also provide deserialization: converting parsed data (JSON
+      converted into Python primitive data types) into complex types, after
+      validation.
+    - Why:
+        - Frontend apps send data in simple formats like JSON.
+        - To create or update data, the user sends JSON to the backend.
+        - Deserialization exists to safely interact with the database using
+          user-provided data.
+    - Parsing = converting the raw request data into Python primitives:
+        - JSON arrives as a byte stream (the request body).
+        - JSONParser parses the stream into Python data.
+        - DRF handles parsing for us; manual parsing is only for learning.
+    - De-serialization steps:
+        1. Define create() / update() methods on the serializer.
+        2. Pass the incoming data to the serializer object.
+        3. Validate the data.
+        4. Call save() to create the data in the DB.
+
+![Slide: De-serialization, why](screenshots/deserialization-why-slide.png)
+
+![Slide: Parsing and de-serialization steps](screenshots/deserialization-parsing-steps-slide.png)
+
+## Parsing a POST request by hand: io.BytesIO + JSONParser
+
+    - api/views.py, multiple_objects_view now handles POST too:
+        import io
+        from rest_framework.parsers import JSONParser
+        from django.views.decorators.csrf import csrf_exempt
+
+        @csrf_exempt
+        def multiple_objects_view(request):
+            if request.method == 'POST':
+                json_data = request.body                  # raw JSON bytes
+                stream = io.BytesIO(json_data)            # bytes -> stream
+                parsed_data = JSONParser().parse(stream)  # stream -> Python data
+                print(parsed_data)
+                print(type(parsed_data))
+
+            data = Person.objects.all()
+            ...                                           # GET part as before
+    - @csrf_exempt: Postman has no CSRF token, so without it Django rejects
+      the POST (403).
+    - Sent with Postman: POST http://127.0.0.1:8000/multipleobj/,
+      Body -> raw -> JSON. As cURL (Postman's code snippet):
+        curl --location 'http://127.0.0.1:8000/multipleobj/' \
+        --header 'Content-Type: application/json' \
+        --data '{
+            "name": "max",
+            "age": 22,
+            "city": "holland"
+        }'
+    - Terminal output:
+        {'name': 'max', 'age': 22, 'city': 'holland'}
+        <class 'dict'>
+      The JSON text became a normal Python dict.
+    - Response: 200 OK, the list with only Sachin and vettel. max is parsed
+      and printed but not saved to the database yet.
+
+![Postman: POST to /multipleobj/ with a JSON body](screenshots/postman-post-multipleobj.png)
+
 ## Helpful resources
 
     - Django docs:
