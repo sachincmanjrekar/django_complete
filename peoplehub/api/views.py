@@ -14,6 +14,7 @@ from rest_framework.views import APIView
 from rest_framework.generics import GenericAPIView, ListCreateAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.mixins import ListModelMixin, CreateModelMixin, RetrieveModelMixin, UpdateModelMixin, DestroyModelMixin
 from rest_framework.authentication import TokenAuthentication
+from rest_framework.permissions import IsAuthenticated
 
 # Create your views here.
 @api_view(['GET', 'PUT', 'PATCH'])
@@ -131,7 +132,8 @@ class SingleObjectConcreteView(RetrieveUpdateDestroyAPIView):
 
 class MultipleObjectsConcreteView(ListCreateAPIView):
     # GET (list), POST (create) - all built in
-    authentication_classes = [TokenAuthentication]  # No authentication required for this view
+    authentication_classes = [TokenAuthentication]  # Who is the user: read the token from the Authorization header
+    permission_classes = [IsAuthenticated]  # No valid token -> 401, the view does not run
     queryset = Person.objects.all()
     serializer_class = PersonModelSerializer
 

@@ -1115,6 +1115,41 @@
 
 ![Postman: the Authorization header overridden by the one Postman generates](screenshots/postman-duplicate-authorization-header.png)
 
+## permission_classes = [IsAuthenticated]: no token, no access
+
+    - Authentication = who is the user. No token -> AnonymousUser, and the
+      request still goes on.
+      Permission = is this user allowed. This is the part that blocks.
+      No permission_classes -> DRF's default AllowAny, so AnonymousUser
+      still got the list.
+    - api/views.py:
+        from rest_framework.permissions import IsAuthenticated
+
+        class MultipleObjectsConcreteView(ListCreateAPIView):
+            authentication_classes = [TokenAuthentication]  # Who is the user: read the token from the Authorization header
+            permission_classes = [IsAuthenticated]  # No valid token -> 401, the view does not run
+            queryset = Person.objects.all()
+            serializer_class = PersonModelSerializer
+    - Typo first: permissions_classes = [IsAuthenticated]
+      DRF only reads permission_classes. The misspelled name is just an
+      unused class attribute: no error, and the view stays AllowAny.
+    - Checked against the running server, GET /multipleobj/:
+        no token          -> 401 {"detail": "Authentication credentials were not provided."}
+        Token abc         -> 401 {"detail": "Invalid token."}
+        the real token    -> 200, the list (terminal: user is admin)
+      Browser refresh -> 401 too (no token sent).
+      /singleobj/<pk>/ has no permission_classes, still open.
+    - peoplehub/settings.py, the project-wide version (every view), added
+      commented out:
+        # REST_FRAMEWORK = {
+        #     'DEFAULT_AUTHENTICATION_CLASSES': [
+        #         'rest_framework.authentication.TokenAuthentication',
+        #     ],
+        #     'DEFAULT_PERMISSION_CLASSES': [
+        #         'rest_framework.permissions.IsAuthenticated',
+        #     ],
+        # }
+
 ## Helpful resources
 
     - Django docs:
