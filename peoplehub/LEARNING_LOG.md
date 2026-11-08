@@ -943,6 +943,25 @@
 
 ![Browsable API: HTML form from the serializer, generic view](screenshots/browsable-api-generic-html-form.png)
 
+## <int:pk> instead of <int:id>: no lookup_field needed
+
+    - get_object() looks up the object by lookup_field, default 'pk', with
+      the value from the URL kwarg of the same name.
+    - api/urls.py:
+        path('singleobj/<int:pk>/', views.SingleObjectGenericView.as_view(), name='single_object_view'),
+    - api/views.py, SingleObjectGenericView: lookup_field = 'id' removed.
+      The methods stay the same, **kwargs passes pk on to get_object().
+    - pk = primary key, whatever the model's primary key field is called.
+      Person uses the automatic id field -> pk and id are the same value,
+      /singleobj/1/ finds the same Person.
+    - The old function / APIView versions still take id as a parameter,
+      fine because no URL uses them.
+    - Checked (test client, rolled back):
+        GET    /singleobj/1/  -> 200
+        GET    /singleobj/22/ -> 404
+        PATCH  /singleobj/1/  -> 200
+        DELETE /singleobj/5/  -> 204
+
 ## Helpful resources
 
     - Django docs:

@@ -97,7 +97,6 @@ class MultipleObjectsView(APIView):
 class SingleObjectGenericView(RetrieveModelMixin, UpdateModelMixin, DestroyModelMixin, GenericAPIView):
     queryset = Person.objects.all()  # The objects this view works with
     serializer_class = PersonModelSerializer  # The serializer this view uses
-    lookup_field = 'id'  # get_object() finds the object by the <int:id> from the URL
 
     def get(self, request, *args, **kwargs):
         return self.retrieve(request, *args, **kwargs)  # RetrieveModelMixin: one object
