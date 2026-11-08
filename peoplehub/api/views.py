@@ -11,6 +11,8 @@ from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.generics import GenericAPIView
+from rest_framework.mixins import ListModelMixin, CreateModelMixin, RetrieveModelMixin, UpdateModelMixin, DestroyModelMixin
 
 # Create your views here.
 @api_view(['GET', 'PUT', 'PATCH'])
@@ -91,3 +93,43 @@ class MultipleObjectsView(APIView):
         serializer.is_valid(raise_exception=True)  # Validate the data and raise an exception if invalid
         serializer.save()  # Save the new object to the database
         return Response({"created": "success"}, status=status.HTTP_201_CREATED)  # Return the created object as JSON response
+
+class SingleObjectGenericView(GenericAPIView):
+    queryset = Person.objects.all()  # The objects this view works with
+    serializer_class = PersonModelSerializer  # The serializer this view uses
+    lookup_field = 'id'  # get_object() finds the object by the <int:id> from the URL
+
+    def get(self, request, id):
+        data = self.get_object()  # Fetch the object (404 if it doesn't exist)
+        serializer = self.get_serializer(data)
+        return Response(serializer.data)
+
+    def put(self, request, id):
+        data = self.get_object()
+        serializer = self.get_serializer(data, data=request.data)  # Deserialize the data
+        serializer.is_valid(raise_exception=True)
+        serializer.save()  # Save the updated object to the database
+        return Response({"updated": "success"}, status=status.HTTP_200_OK)
+
+    def patch(self, request, id):
+        data = self.get_object()
+        serializer = self.get_serializer(data, data=request.data, partial=True)  # Partial update
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({"updated": "success"}, status=status.HTTP_200_OK)
+
+
+class MultipleObjectsGenericView(GenericAPIView):
+    queryset = Person.objects.all()
+    serializer_class = PersonModelSerializer
+
+    def get(self, request):
+        data = self.get_queryset()  # Fetch all objects from queryset
+        serializer = self.get_serializer(data, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)  # Deserialize the data
+        serializer.is_valid(raise_exception=True)
+        serializer.save()  # Save the new object to the database
+        return Response({"created": "success"}, status=status.HTTP_201_CREATED)

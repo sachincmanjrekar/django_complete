@@ -782,6 +782,84 @@
       The 404 is JSON: APIView turns Django's Http404 into a DRF response
       (@api_view does the same, it builds an APIView behind the scenes).
 
+## GenericAPIView (course slide)
+
+    - GenericAPIView extends APIView and adds common features for standard
+      list and detail views.
+    - Attributes:
+        queryset         -> the queryset used to return objects from this view
+        serializer_class -> the serializer used to validate input, convert
+                            input data and serialize output data
+        class MultipleObj(GenericAPIView):
+            queryset = Person.objects.all()
+            serializer_class = PersonSerializer
+
+![Slide: Generic API view, GenericAPIView](screenshots/generic-apiview-slide.png)
+
+## SingleObjectGenericView and MultipleObjectsGenericView
+
+    - api/views.py:
+        from rest_framework.generics import GenericAPIView
+
+        class SingleObjectGenericView(GenericAPIView):
+            queryset = Person.objects.all()
+            serializer_class = PersonModelSerializer
+            lookup_field = 'id'
+
+            def get(self, request, id):
+                data = self.get_object()
+                serializer = self.get_serializer(data)
+                return Response(serializer.data)
+
+            def put(self, request, id):
+                data = self.get_object()
+                serializer = self.get_serializer(data, data=request.data)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+                return Response({"updated": "success"}, status=status.HTTP_200_OK)
+
+            def patch(self, request, id):
+                ...same as put, with partial=True
+
+        class MultipleObjectsGenericView(GenericAPIView):
+            queryset = Person.objects.all()
+            serializer_class = PersonModelSerializer
+
+            def get(self, request):
+                data = self.get_queryset()
+                serializer = self.get_serializer(data, many=True)
+                return Response(serializer.data)
+
+            def post(self, request):
+                serializer = self.get_serializer(data=request.data)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+                return Response({"created": "success"}, status=status.HTTP_201_CREATED)
+    - Compared to APIView:
+        Person.objects.all()             -> self.get_queryset()   (from queryset)
+        get_object_or_404(Person, id=id) -> self.get_object()     (404 by itself)
+        PersonModelSerializer(...)       -> self.get_serializer(...) (from serializer_class)
+      Model and serializer are set once at the top of the class.
+    - lookup_field = 'id': get_object() looks the object up by this field,
+      with the value from the URL kwarg of the same name (<int:id>). The
+      default is 'pk' -> with <int:id> in the URL and no lookup_field it
+      wouldn't find the id.
+    - api/urls.py now points to the generic views:
+        path('singleobj/<int:id>/', views.SingleObjectGenericView.as_view(), name='single_object_view'),
+        path('multipleobj/', views.MultipleObjectsGenericView.as_view(), name='multiple_objects_view'),
+      The APIView classes and the function views stay in views.py, unused.
+    - Typo fixed: from rest_framework.views import APIView' (stray quote,
+      broke the file) -> APIView.
+    - Checked (test client, rolled back):
+        GET   /singleobj/1/   -> 200
+        GET   /singleobj/22/  -> 404 {"detail": "No Person matches the given query."}
+        GET   /multipleobj/   -> 200 the list
+        PATCH /singleobj/1/   -> 200 {"updated": "success"}
+        PUT   /singleobj/1/ (only name) -> 400 age and city required
+        POST  /multipleobj/   -> 201 {"created": "success"}
+        PUT   /multipleobj/   -> 405
+        /multipleobj/ in the browser -> 200 text/html (browsable page)
+
 ## Helpful resources
 
     - Django docs:
