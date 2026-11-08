@@ -55,6 +55,7 @@ def multiple_objects_view(request):
             return Response(serializer.errors, content_type='application/json', status=status.HTTP_400_BAD_REQUEST)  # Return validation errors as JSON response
 
     if request.method == 'GET':
+        print(request.accepted_renderer)
         data = Person.objects.all()  # Fetch all objects
         serializer = PersonModelSerializer(data, many=True)
         return Response(serializer.data, content_type='application/json')  # Return as JSON response

@@ -588,6 +588,57 @@
       ("manual parsing is only for learning", from the de-serialization
       slide).
 
+## Content negotiation (course slides + DRF docs)
+
+    - Content negotiation = sending the response in the format the client
+      asks for.
+    - Flow:
+        Client -> Request (Accept: application/json)
+        -> DRF checks the Accept header against the renderers
+        -> picks a renderer (JSONRenderer etc.)
+        -> View returns Response()
+        -> final content negotiation -> the renderer renders the data
+        -> Response -> Client
+
+![Slide: Content negotiation](screenshots/content-negotiation-slide.png)
+
+![Slide: Content negotiation flow](screenshots/content-negotiation-flow-slide.png)
+
+    - DRF docs, Settings -> API policy settings -> DEFAULT_RENDERER_CLASSES
+      (applies to every APIView class-based view and @api_view function
+      view). Default:
+        [
+            'rest_framework.renderers.JSONRenderer',
+            'rest_framework.renderers.BrowsableAPIRenderer',
+        ]
+      JSONRenderer is first -> the default when the client accepts anything.
+      BrowsableAPIRenderer -> the HTML page DRF shows in the browser.
+      DEFAULT_PARSER_CLASSES = the parsers behind request.data.
+      https://www.django-rest-framework.org/api-guide/settings/
+
+![DRF docs: DEFAULT_RENDERER_CLASSES](screenshots/drf-default-renderer-classes-docs.png)
+
+    - api/views.py, GET in multiple_objects_view prints which renderer DRF
+      picked:
+        if request.method == 'GET':
+            print(request.accepted_renderer)
+            ...
+    - Request from Postman (as cURL):
+        curl --location 'http://127.0.0.1:8000/multipleobj/' \
+        --header 'Accept: text/html' \
+        --header 'Cookie: csrftoken=...'
+      Terminal:
+        <rest_framework.renderers.JSONRenderer object at 0x0000019A4C832120>
+        [08/Nov/2026 18:30:30] "GET /multipleobj/ HTTP/1.1" 200 211
+      JSONRenderer and 211 bytes (the JSON list) -> the default renderer.
+    - Checked with the Django test client, same view, different Accept:
+        Accept: text/html        -> BrowsableAPIRenderer, 7535 bytes (HTML page)
+        Accept: application/json -> JSONRenderer, 211 bytes
+        Accept: */*              -> JSONRenderer, 211 bytes (the default)
+    - Note: Response(..., content_type='application/json') in the view sets
+      the Content-Type header to application/json even when the
+      BrowsableAPIRenderer renders HTML.
+
 ## Helpful resources
 
     - Django docs:
