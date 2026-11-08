@@ -94,42 +94,30 @@ class MultipleObjectsView(APIView):
         serializer.save()  # Save the new object to the database
         return Response({"created": "success"}, status=status.HTTP_201_CREATED)  # Return the created object as JSON response
 
-class SingleObjectGenericView(GenericAPIView):
+class SingleObjectGenericView(RetrieveModelMixin, UpdateModelMixin, DestroyModelMixin, GenericAPIView):
     queryset = Person.objects.all()  # The objects this view works with
     serializer_class = PersonModelSerializer  # The serializer this view uses
     lookup_field = 'id'  # get_object() finds the object by the <int:id> from the URL
 
-    def get(self, request, id):
-        data = self.get_object()  # Fetch the object (404 if it doesn't exist)
-        serializer = self.get_serializer(data)
-        return Response(serializer.data)
+    def get(self, request, *args, **kwargs):
+        return self.retrieve(request, *args, **kwargs)  # RetrieveModelMixin: one object
 
-    def put(self, request, id):
-        data = self.get_object()
-        serializer = self.get_serializer(data, data=request.data)  # Deserialize the data
-        serializer.is_valid(raise_exception=True)
-        serializer.save()  # Save the updated object to the database
-        return Response({"updated": "success"}, status=status.HTTP_200_OK)
+    def put(self, request, *args, **kwargs):
+        return self.update(request, *args, **kwargs)  # UpdateModelMixin: full update
 
-    def patch(self, request, id):
-        data = self.get_object()
-        serializer = self.get_serializer(data, data=request.data, partial=True)  # Partial update
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response({"updated": "success"}, status=status.HTTP_200_OK)
+    def patch(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)  # UpdateModelMixin: partial update
+
+    def delete(self, request, *args, **kwargs):
+        return self.destroy(request, *args, **kwargs)  # DestroyModelMixin: delete, 204 No Content
 
 
-class MultipleObjectsGenericView(GenericAPIView):
+class MultipleObjectsGenericView(CreateModelMixin, ListModelMixin, GenericAPIView):
     queryset = Person.objects.all()
     serializer_class = PersonModelSerializer
 
-    def get(self, request):
-        data = self.get_queryset()  # Fetch all objects from queryset
-        serializer = self.get_serializer(data, many=True)
-        return Response(serializer.data)
+    def get(self, request, *args, **kwargs):
+        return self.list(request, *args, **kwargs)  # ListModelMixin: all objects
 
-    def post(self, request):
-        serializer = self.get_serializer(data=request.data)  # Deserialize the data
-        serializer.is_valid(raise_exception=True)
-        serializer.save()  # Save the new object to the database
-        return Response({"created": "success"}, status=status.HTTP_201_CREATED)
+    def post(self, request, *args, **kwargs):
+        return self.create(request, *args, **kwargs)  # CreateModelMixin: new object, 201

@@ -860,6 +860,89 @@
         PUT   /multipleobj/   -> 405
         /multipleobj/ in the browser -> 200 text/html (browsable page)
 
+## Mixins (course slide)
+
+    - Mixin classes provide actions that define basic view behavior. They
+      give action methods instead of handlers like .get() or .post(), which
+      makes the behavior flexible and reusable.
+        CreateModelMixin   -> create()                  returns the newly created object
+        ListModelMixin     -> list()                    returns a list of objects
+        RetrieveModelMixin -> retrieve()                returns a single object
+        UpdateModelMixin   -> update() / partial_update() returns the updated object
+        DestroyModelMixin  -> destroy()                 deletes the object, returns no content
+
+![Slide: Mixins](screenshots/mixins-slide.png)
+
+## Generic views with mixins
+
+    - api/views.py:
+        from rest_framework.mixins import ListModelMixin, CreateModelMixin, \
+            RetrieveModelMixin, UpdateModelMixin, DestroyModelMixin
+
+        class SingleObjectGenericView(RetrieveModelMixin, UpdateModelMixin,
+                                      DestroyModelMixin, GenericAPIView):
+            queryset = Person.objects.all()
+            serializer_class = PersonModelSerializer
+            lookup_field = 'id'
+
+            def get(self, request, *args, **kwargs):
+                return self.retrieve(request, *args, **kwargs)
+            def put(self, request, *args, **kwargs):
+                return self.update(request, *args, **kwargs)
+            def patch(self, request, *args, **kwargs):
+                return self.partial_update(request, *args, **kwargs)
+            def delete(self, request, *args, **kwargs):
+                return self.destroy(request, *args, **kwargs)
+
+        class MultipleObjectsGenericView(CreateModelMixin, ListModelMixin, GenericAPIView):
+            queryset = Person.objects.all()
+            serializer_class = PersonModelSerializer
+
+            def get(self, request, *args, **kwargs):
+                return self.list(request, *args, **kwargs)
+            def post(self, request, *args, **kwargs):
+                return self.create(request, *args, **kwargs)
+    - Each handler is one line: it hands the request to the mixin's action.
+      get_object, get_serializer, is_valid(raise_exception=True), save and the
+      Response are all inside the mixin.
+    - The mixins come before GenericAPIView in the class list; the mixins use
+      queryset / serializer_class / get_object() from GenericAPIView.
+    - *args, **kwargs pass the URL kwargs (id) on to the mixin, get_object()
+      reads id from there (lookup_field = 'id').
+    - New: delete() with DestroyModelMixin -> DELETE /singleobj/<id>/ works.
+    - Responses changed: the mixins return the object's data instead of
+      {"updated": "success"} / {"created": "success"}.
+    - Checked (test client, rolled back):
+        GET    /singleobj/1/   -> 200 {"name": "Sachin max", "age": 44, "city": "usa"}
+        GET    /singleobj/22/  -> 404
+        GET    /multipleobj/   -> 200 the list
+        PATCH  /singleobj/1/ {"name": "ok"}         -> 200 {"name": "ok", "age": 44, "city": "usa"}
+        PUT    /singleobj/1/ {"name": "x"}          -> 400 age and city required
+        PUT    /singleobj/1/ (all 3 fields)         -> 200 the updated Person
+        POST   /multipleobj/ (all 3 fields)         -> 201 the new Person
+        POST   /multipleobj/ {"name": "t"}          -> 400 age and city required
+        DELETE /singleobj/5/   -> 204 (empty body), then GET /singleobj/5/ -> 404
+        PUT    /multipleobj/   -> 405
+
+## Browsable API: the HTML form appears with the generic view
+
+    - /multipleobj/ in the browser with MultipleObjectsGenericView: next to
+      "Raw data" there is now an "HTML form" tab with Name, Age and City
+      inputs and a POST button.
+    - Why: the browsable API builds the form from the view's serializer. A
+      GenericAPIView has serializer_class (PersonModelSerializer), so DRF
+      knows the fields and makes one input per field. The APIView /
+      @api_view versions had no serializer_class -> only the raw form
+      (Media type + Content, type the JSON by hand), see the earlier
+      screenshot.
+    - Other differences on the page:
+        - Title "Multiple Objects Generic" comes from the class name
+          MultipleObjectsGenericView (the "View" at the end is dropped).
+        - Allow: GET, POST, HEAD, OPTIONS -> HEAD is added automatically
+          for a class with get().
+
+![Browsable API: HTML form from the serializer, generic view](screenshots/browsable-api-generic-html-form.png)
+
 ## Helpful resources
 
     - Django docs:
