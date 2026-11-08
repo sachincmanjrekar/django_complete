@@ -548,6 +548,46 @@
       @api_view rejects the method before our code runs. (Without it, the
       view would have returned None -> 500.)
 
+## Request and Response classes (course slides)
+
+    - Request: DRF's Request class extends Django's HttpRequest. It parses
+      JSON and other formats automatically, so they can be handled just like
+      regular form data.
+        - request.data:
+            - all parsed content, file and non-file inputs
+            - works for request bodies beyond POST: PUT and PATCH too
+            - flexible parsing, JSON as well, not just form data
+        - request.query_params:
+            - a clearer name for request.GET (the ?key=value part of the
+              URL), recommended because any HTTP method can have query
+              parameters, not just GET.
+    - Response:
+        - Rendering: the Response class converts Python data (dicts, lists)
+          into a rendered format like JSON or XML with the right renderer
+          before sending it to the client.
+        - Content negotiation: decides how the response data is formatted,
+          based on what the client asks for.
+
+![Slide: Request, .data](screenshots/request-data-slide.png)
+
+![Slide: Request, .query_params](screenshots/request-query-params-slide.png)
+
+![Slide: Response, rendering and content negotiation](screenshots/response-rendering-slide.png)
+
+## request.data instead of parsing by hand
+
+    - api/views.py, PUT, PATCH and POST: the 2-3 parsing lines are replaced
+      by one line:
+        before:
+            stream = io.BytesIO(request.body)
+            parsed_data = JSONParser().parse(stream)
+        now:
+            parsed_data = request.data
+    - With @api_view, request is DRF's Request, so request.data is already
+      the parsed Python dict. DRF does the BytesIO + JSONParser part for us
+      ("manual parsing is only for learning", from the de-serialization
+      slide).
+
 ## Helpful resources
 
     - Django docs:

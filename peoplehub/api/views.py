@@ -18,8 +18,7 @@ def single_object_view(request, id):
 
     if request.method == "PUT":
 
-        stream = io.BytesIO(request.body)  # Create a BytesIO stream from the request body
-        parsed_data = JSONParser().parse(stream)  # Parse the JSON data
+        parsed_data = request.data  # Get the parsed data from the request
         serializer = PersonModelSerializer(data, data=parsed_data)  # Deserialize the data
         if serializer.is_valid():
             serializer.save()  # Save the updated object to the database
@@ -28,8 +27,7 @@ def single_object_view(request, id):
             return Response(serializer.errors, content_type='application/json', status=status.HTTP_400_BAD_REQUEST)  # Return validation errors as JSON response
 
     if request.method == "PATCH":
-        stream = io.BytesIO(request.body)  # Create a BytesIO stream from the request body
-        parsed_data = JSONParser().parse(stream)  # Parse the JSON data
+        parsed_data = request.data  # Get the parsed data from the request
         serializer = PersonModelSerializer(data, data=parsed_data, partial=True)  # Deserialize the data with partial update
         if serializer.is_valid():
             serializer.save()  # Save the updated object to the database
@@ -47,10 +45,7 @@ def single_object_view(request, id):
 @api_view(['GET', 'POST'])
 def multiple_objects_view(request):
     if request.method == 'POST':
-        # Handle POST request to create a new Person object
-        json_data = request.body  # Get the raw JSON data from the request body
-        stream = io.BytesIO(json_data)  # Create a BytesIO stream from the JSON
-        parsed_data = JSONParser().parse(stream)  # Parse the JSON data
+        parsed_data = request.data  # Get the parsed data from the request
         serializer = PersonModelSerializer(data=parsed_data)  # Deserialize the data
         if serializer.is_valid():
             # If the data is valid, create a new Person object
