@@ -20,20 +20,16 @@ def single_object_view(request, id):
 
         parsed_data = request.data  # Get the parsed data from the request
         serializer = PersonModelSerializer(data, data=parsed_data)  # Deserialize the data
-        if serializer.is_valid():
-            serializer.save()  # Save the updated object to the database
-            return Response({"updated": "success"}, content_type='application/json', status=status.HTTP_200_OK)  # Return the updated object as JSON response
-        else:
-            return Response(serializer.errors, content_type='application/json', status=status.HTTP_400_BAD_REQUEST)  # Return validation errors as JSON response
+        serializer.is_valid(raise_exception=True)  # Validate the data and raise an exception if invalid
+        serializer.save()  # Save the updated object to the database
+        return Response({"updated": "success"}, content_type='application/json', status=status.HTTP_200_OK)  # Return the updated object as JSON response
 
     if request.method == "PATCH":
         parsed_data = request.data  # Get the parsed data from the request
         serializer = PersonModelSerializer(data, data=parsed_data, partial=True)  # Deserialize the data with partial update
-        if serializer.is_valid():
-            serializer.save()  # Save the updated object to the database
-            return Response({"updated": "success"}, content_type='application/json', status=status.HTTP_200_OK)  # Return the updated object as JSON response
-        else:
-            return Response(serializer.errors, content_type='application/json', status=status.HTTP_400_BAD_REQUEST)  # Return validation errors as JSON response
+        serializer.is_valid(raise_exception=True)  # Validate the data and raise an exception if invalid
+        serializer.save()  # Save the updated object to the database
+        return Response({"updated": "success"}, content_type='application/json', status=status.HTTP_200_OK)  # Return the updated object as JSON response
 
     if request.method == "GET":
 
@@ -47,12 +43,10 @@ def multiple_objects_view(request):
     if request.method == 'POST':
         parsed_data = request.data  # Get the parsed data from the request
         serializer = PersonModelSerializer(data=parsed_data)  # Deserialize the data
-        if serializer.is_valid():
-            # If the data is valid, create a new Person object
-            serializer.save()  # Save the new object to the database
-            return Response({"created": "success"}, content_type='application/json', status=status.HTTP_201_CREATED)  # Return the created object as JSON response
-        else:
-            return Response(serializer.errors, content_type='application/json', status=status.HTTP_400_BAD_REQUEST)  # Return validation errors as JSON response
+        serializer.is_valid(raise_exception=True)  # Validate the data and raise an exception if invalid
+        # If the data is valid, create a new Person object
+        serializer.save()  # Save the new object to the database
+        return Response({"created": "success"}, content_type='application/json', status=status.HTTP_201_CREATED)  # Return the created object as JSON response
 
     if request.method == 'GET':
         print(request.accepted_renderer)

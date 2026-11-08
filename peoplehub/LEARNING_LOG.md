@@ -639,6 +639,39 @@
       the Content-Type header to application/json even when the
       BrowsableAPIRenderer renders HTML.
 
+## Raise exception argument: is_valid(raise_exception=True)
+
+    - api/views.py, POST, PUT and PATCH: the if / else around is_valid()
+      replaced by one line:
+        before:
+            if serializer.is_valid():
+                serializer.save()
+                return Response({"created": "success"}, status=status.HTTP_201_CREATED)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        now:
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response({"created": "success"}, status=status.HTTP_201_CREATED)
+    - Invalid data -> is_valid raises a ValidationError, DRF catches it and
+      sends 400 with serializer.errors by itself. The lines after it only run
+      when the data is valid.
+    - POST with only a name:
+        curl --location 'http://127.0.0.1:8000/multipleobj/' \
+        --header 'Content-Type: application/json' \
+        --data '{
+            "name": "Add your name in the body"
+        }'
+      -> 400
+        {
+            "age": ["This field is required."],
+            "city": ["This field is required."]
+        }
+    - Checked PUT and PATCH the same way (test client, rolled back):
+        PUT   /singleobj/1/ {"name": "x"}    -> 400 age and city required
+        PATCH /singleobj/1/ {"age": "abc"}   -> 400 "A valid integer is required."
+        PATCH /singleobj/1/ {"name": "ok"}   -> 200 {"updated": "success"}
+
 ## Helpful resources
 
     - Django docs:
