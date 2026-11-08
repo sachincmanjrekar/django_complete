@@ -962,6 +962,50 @@
         PATCH  /singleobj/1/  -> 200
         DELETE /singleobj/5/  -> 204
 
+## Concrete API views: ListCreateAPIView + RetrieveUpdateDestroyAPIView
+
+    - Concrete generic views = GenericAPIView + the mixins + the one-line
+      get() / post() / put() / patch() / delete() methods, already put
+      together by DRF. Only queryset and serializer_class are left to write.
+    - api/views.py:
+        from rest_framework.generics import GenericAPIView, ListCreateAPIView, \
+            RetrieveUpdateDestroyAPIView
+
+        class SingleObjectConcreteView(RetrieveUpdateDestroyAPIView):
+            queryset = Person.objects.all()
+            serializer_class = PersonModelSerializer
+
+        class MultipleObjectsConcreteView(ListCreateAPIView):
+            queryset = Person.objects.all()
+            serializer_class = PersonModelSerializer
+    - The name says which actions the view has:
+        ListCreateAPIView            -> GET (list) + POST (create)
+        RetrieveUpdateDestroyAPIView -> GET (retrieve) + PUT / PATCH (update)
+                                        + DELETE (destroy)
+      Other concrete views: CreateAPIView, ListAPIView, RetrieveAPIView,
+      UpdateAPIView, DestroyAPIView, RetrieveUpdateAPIView,
+      RetrieveDestroyAPIView.
+    - Same evolution, the view for one Person:
+        @api_view function -> if request.method == ... blocks
+        APIView            -> get() / put() / patch() methods, code by hand
+        GenericAPIView     -> queryset + serializer_class, get_object(), get_serializer()
+        + mixins           -> one-line methods: return self.retrieve(...)
+        concrete view      -> 2 lines, no methods at all
+    - api/urls.py now points to the concrete views:
+        path('singleobj/<int:pk>/', views.SingleObjectConcreteView.as_view(), name='single_object_view'),
+        path('multipleobj/', views.MultipleObjectsConcreteView.as_view(), name='multiple_objects_view'),
+      <int:pk> works without lookup_field (default 'pk').
+    - Checked (test client, rolled back):
+        GET    /singleobj/1/   -> 200   Allow: GET, PUT, PATCH, DELETE, HEAD, OPTIONS
+        GET    /singleobj/22/  -> 404
+        GET    /multipleobj/   -> 200   Allow: GET, POST, HEAD, OPTIONS
+        PATCH  /singleobj/1/   -> 200 the updated Person
+        PUT    /singleobj/1/ (only name) -> 400 age and city required
+        POST   /multipleobj/   -> 201 the new Person
+        DELETE /singleobj/5/   -> 204
+        PUT    /multipleobj/   -> 405
+        browsable page /multipleobj/ -> 200, with the HTML form
+
 ## Helpful resources
 
     - Django docs:

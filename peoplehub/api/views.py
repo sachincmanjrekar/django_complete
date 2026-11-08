@@ -11,7 +11,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.generics import GenericAPIView
+from rest_framework.generics import GenericAPIView, ListCreateAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.mixins import ListModelMixin, CreateModelMixin, RetrieveModelMixin, UpdateModelMixin, DestroyModelMixin
 
 # Create your views here.
@@ -120,3 +120,15 @@ class MultipleObjectsGenericView(CreateModelMixin, ListModelMixin, GenericAPIVie
 
     def post(self, request, *args, **kwargs):
         return self.create(request, *args, **kwargs)  # CreateModelMixin: new object, 201
+
+
+class SingleObjectConcreteView(RetrieveUpdateDestroyAPIView):
+    # GET (retrieve), PUT / PATCH (update), DELETE (destroy) - all built in
+    queryset = Person.objects.all()
+    serializer_class = PersonModelSerializer
+
+
+class MultipleObjectsConcreteView(ListCreateAPIView):
+    # GET (list), POST (create) - all built in
+    queryset = Person.objects.all()
+    serializer_class = PersonModelSerializer
