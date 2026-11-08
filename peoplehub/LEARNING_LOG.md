@@ -711,6 +711,77 @@
 
 ![Browsable API: /multipleobj/ in the browser](screenshots/browsable-api-multipleobj.png)
 
+## Class based API views: APIView (course slide)
+
+    - APIView subclasses Django's View class:
+        - handler methods get DRF's Request instead of Django's HttpRequest
+        - handlers return Response; the view does content negotiation and
+          rendering
+        - any APIException is caught and turned into the right response
+    - Each HTTP method has its own handler method, the request is dispatched
+      to the matching one (.get(), .post(), ...).
+    - Undefined HTTP methods return 405 Method Not Allowed automatically.
+        class MultipleObj(APIView):
+            def get(self, request):
+                return Response()
+            def post(self, request):
+                return Response()
+
+![Slide: Class based API view, APIView](screenshots/class-based-apiview-slide.png)
+
+## SingleObjectView and MultipleObjectsView (APIView)
+
+    - api/views.py, the same logic as the function views, one method per
+      HTTP method instead of if request.method == ...:
+        from rest_framework.views import APIView
+
+        class SingleObjectView(APIView):
+            def get(self, request, id):
+                data = get_object_or_404(Person, id=id)
+                serializer = PersonModelSerializer(data)
+                return Response(serializer.data)
+
+            def put(self, request, id):
+                data = get_object_or_404(Person, id=id)
+                serializer = PersonModelSerializer(data, data=request.data)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+                return Response({"updated": "success"}, status=status.HTTP_200_OK)
+
+            def patch(self, request, id):
+                ...same as put, with partial=True
+
+        class MultipleObjectsView(APIView):
+            def get(self, request):
+                data = Person.objects.all()
+                serializer = PersonModelSerializer(data, many=True)
+                return Response(serializer.data)
+
+            def post(self, request):
+                serializer = PersonModelSerializer(data=request.data)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+                return Response({"created": "success"}, status=status.HTTP_201_CREATED)
+    - Each method gets the id from the URL as a parameter (def get(self,
+      request, id)), so get_object_or_404 is in every method.
+    - No @api_view(['GET', ...]) list needed: the allowed methods are the
+      methods the class has.
+    - api/urls.py, class views need .as_view():
+        path('singleobj/<int:id>/', views.SingleObjectView.as_view(), name='single_object_view'),
+        path('multipleobj/', views.MultipleObjectsView.as_view(), name='multiple_objects_view'),
+    - The old function views are still in views.py, but no URL uses them.
+    - Checked (test client, rolled back):
+        GET    /singleobj/1/   -> 200 the Person as JSON
+        GET    /singleobj/22/  -> 404 {"detail": "No Person matches the given query."}
+        GET    /multipleobj/   -> 200 the list
+        PATCH  /singleobj/1/   -> 200 {"updated": "success"}
+        PUT    /singleobj/1/ (only name) -> 400 age and city required
+        POST   /multipleobj/   -> 201 {"created": "success"}
+        PUT    /multipleobj/   -> 405 Method "PUT" not allowed (no put())
+        DELETE /singleobj/1/   -> 405 Method "DELETE" not allowed (no delete())
+      The 404 is JSON: APIView turns Django's Http404 into a DRF response
+      (@api_view does the same, it builds an APIView behind the scenes).
+
 ## Helpful resources
 
     - Django docs:

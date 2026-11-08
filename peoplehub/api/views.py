@@ -10,6 +10,7 @@ from rest_framework import status
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 # Create your views here.
 @api_view(['GET', 'PUT', 'PATCH'])
@@ -38,6 +39,29 @@ def single_object_view(request, id):
         return Response(serializer.data)
 
 
+class SingleObjectView(APIView):
+    def get(self, request, id):
+        data = get_object_or_404(Person, id=id)  # Fetch a single object (for example, with id=1)
+        serializer = PersonModelSerializer(data)
+        return Response(serializer.data)
+
+    def put(self, request, id):
+        data = get_object_or_404(Person, id=id)  # Fetch a single object (for example, with id=1)
+        parsed_data = request.data  # Get the parsed data from the request
+        serializer = PersonModelSerializer(data, data=parsed_data)  # Deserialize the data
+        serializer.is_valid(raise_exception=True)  # Validate the data and raise an exception if invalid
+        serializer.save()  # Save the updated object to the database
+        return Response({"updated": "success"}, status=status.HTTP_200_OK)  # Return the updated object as JSON response
+
+    def patch(self, request, id):
+        data = get_object_or_404(Person, id=id)  # Fetch a single object (for example, with id=1)
+        parsed_data = request.data  # Get the parsed data from the request
+        serializer = PersonModelSerializer(data, data=parsed_data, partial=True)  # Deserialize the data with partial update
+        serializer.is_valid(raise_exception=True)  # Validate the data and raise an exception if invalid
+        serializer.save()  # Save the updated object to the database
+        return Response({"updated": "success"}, status=status.HTTP_200_OK)  # Return the updated object as JSON response
+
+
 @api_view(['GET', 'POST'])
 def multiple_objects_view(request):
     if request.method == 'POST':
@@ -53,3 +77,17 @@ def multiple_objects_view(request):
         data = Person.objects.all()  # Fetch all objects
         serializer = PersonModelSerializer(data, many=True)
         return Response(serializer.data)  # Return as JSON response
+
+
+class MultipleObjectsView(APIView):
+    def get(self, request):
+        data = Person.objects.all()  # Fetch all objects
+        serializer = PersonModelSerializer(data, many=True)
+        return Response(serializer.data)  # Return as JSON response
+
+    def post(self, request):
+        parsed_data = request.data  # Get the parsed data from the request
+        serializer = PersonModelSerializer(data=parsed_data)  # Deserialize the data
+        serializer.is_valid(raise_exception=True)  # Validate the data and raise an exception if invalid
+        serializer.save()  # Save the new object to the database
+        return Response({"created": "success"}, status=status.HTTP_201_CREATED)  # Return the created object as JSON response
