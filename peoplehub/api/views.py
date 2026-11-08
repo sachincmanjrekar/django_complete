@@ -22,14 +22,14 @@ def single_object_view(request, id):
         serializer = PersonModelSerializer(data, data=parsed_data)  # Deserialize the data
         serializer.is_valid(raise_exception=True)  # Validate the data and raise an exception if invalid
         serializer.save()  # Save the updated object to the database
-        return Response({"updated": "success"}, content_type='application/json', status=status.HTTP_200_OK)  # Return the updated object as JSON response
+        return Response({"updated": "success"}, status=status.HTTP_200_OK)  # Return the updated object as JSON response
 
     if request.method == "PATCH":
         parsed_data = request.data  # Get the parsed data from the request
         serializer = PersonModelSerializer(data, data=parsed_data, partial=True)  # Deserialize the data with partial update
         serializer.is_valid(raise_exception=True)  # Validate the data and raise an exception if invalid
         serializer.save()  # Save the updated object to the database
-        return Response({"updated": "success"}, content_type='application/json', status=status.HTTP_200_OK)  # Return the updated object as JSON response
+        return Response({"updated": "success"}, status=status.HTTP_200_OK)  # Return the updated object as JSON response
 
     if request.method == "GET":
 
@@ -46,10 +46,10 @@ def multiple_objects_view(request):
         serializer.is_valid(raise_exception=True)  # Validate the data and raise an exception if invalid
         # If the data is valid, create a new Person object
         serializer.save()  # Save the new object to the database
-        return Response({"created": "success"}, content_type='application/json', status=status.HTTP_201_CREATED)  # Return the created object as JSON response
+        return Response({"created": "success"}, status=status.HTTP_201_CREATED)  # Return the created object as JSON response
 
     if request.method == 'GET':
         print(request.accepted_renderer)
         data = Person.objects.all()  # Fetch all objects
         serializer = PersonModelSerializer(data, many=True)
-        return Response(serializer.data, content_type='application/json')  # Return as JSON response
+        return Response(serializer.data)  # Return as JSON response

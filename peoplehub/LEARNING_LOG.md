@@ -672,6 +672,45 @@
         PATCH /singleobj/1/ {"age": "abc"}   -> 400 "A valid integer is required."
         PATCH /singleobj/1/ {"name": "ok"}   -> 200 {"updated": "success"}
 
+## Browsable API
+
+    - Already on by default: BrowsableAPIRenderer is in the default
+      DEFAULT_RENDERER_CLASSES. Needed for it: 'rest_framework' in
+      INSTALLED_APPS (its templates and CSS), views with @api_view and
+      DRF's Response.
+    - Problem: Response(serializer.data, content_type='application/json')
+      in the list view. For a browser, DRF renders the HTML page, but the
+      header said application/json -> the browser shows raw HTML text.
+    - Fix, api/views.py: content_type='application/json' removed from every
+      Response(...), DRF sets the Content-Type from the chosen renderer:
+        return Response(serializer.data)
+        return Response({"created": "success"}, status=status.HTTP_201_CREATED)
+    - peoplehub/urls.py, log in / log out links on the browsable page:
+        path('api-auth/', include('rest_framework.urls')),
+      Adds /api-auth/login/ and /api-auth/logout/. The browsable page then
+      shows "Log in" top right; after logging in with a Django user (e.g.
+      admin) it shows the username with "Log out". The browser then sends
+      the session cookie, which matters once views need a logged-in user
+      (permissions). Only for the browser, Postman / frontends log in
+      differently.
+    - Checked:
+        /multipleobj/   Accept text/html        -> 200 text/html (browsable page)
+        /multipleobj/   Accept application/json -> 200 application/json
+        /singleobj/1/   Accept text/html        -> 200 text/html
+        /api-auth/login/                        -> 200 login page
+    - http://127.0.0.1:8000/multipleobj/ in the browser: the "Multiple Objects
+      View" page with
+        - the request line: GET /multipleobj/
+        - the response: HTTP 200 OK, Allow: GET, OPTIONS, POST,
+          Content-Type: application/json, Vary: Accept, and the JSON list
+        - OPTIONS and GET buttons (GET dropdown: json / api format)
+        - a form at the bottom (Media type + Content) to POST a new Person
+        - "admin" top right = logged in as the admin user
+      Page title "Multiple Objects View" comes from the function name
+      multiple_objects_view.
+
+![Browsable API: /multipleobj/ in the browser](screenshots/browsable-api-multipleobj.png)
+
 ## Helpful resources
 
     - Django docs:
