@@ -1006,6 +1006,115 @@
         PUT    /multipleobj/   -> 405
         browsable page /multipleobj/ -> 200, with the HTML form
 
+## Authentication and token-based authentication (course slides)
+
+    - Authentication = verifying who a user is, usually by checking
+      credentials like a username / password or a token, before allowing
+      access to a system.
+    - Token-based authentication = the user proves their identity once with
+      credentials, and after that on every request with a token instead of
+      the password.
+    - Login phase:
+        1. Client -> POST /api/login/ {"username": "simar", "password": "12345"}
+        2. DRF / Django verifies the credentials: finds the user by username,
+           compares the passwords.
+        3. A token is created (or fetched if the user already has one):
+           User: simar, Token: a9f4c83d7f1e2b... (a random string)
+        4. The token is returned to the client: {"token": "a9f4c83d7f1e2b..."}
+
+![Slide: Authentication](screenshots/authentication-slide.png)
+
+![Slide: Token-based authentication](screenshots/token-authentication-slide.png)
+
+![Slide: Token-based authentication, login phase](screenshots/token-authentication-login-phase-slide.png)
+
+## Token authentication: user_auth app, login view, TokenAuthentication
+
+    - peoplehub/settings.py, INSTALLED_APPS:
+        'rest_framework.authtoken',   # the Token model (one token per user)
+        'user_auth'
+      authtoken has its own table, so: python manage.py migrate
+      The admin then shows AUTH TOKEN -> Tokens.
+    - Error: python3 .\manage.py startapp user_auth (inside the drf venv)
+        ModuleNotFoundError: No module named 'rest_framework'
+      The traceback paths were the global Python
+      (AppData\Roaming\Python\Python314\site-packages\django).
+      On Windows the venv only has python.exe (no python3.exe), so python3
+      runs the global Python, which has Django but not DRF.
+      Fix: python .\manage.py startapp user_auth
+
+![Admin: AUTH TOKEN -> Tokens after migrate](screenshots/admin-auth-token-tokens.png)
+
+    - user_auth/views.py:
+        from rest_framework.views import APIView, Response
+        from django.contrib.auth import authenticate
+        from rest_framework.authtoken.models import Token
+        from rest_framework import status
+
+        class LoginView(APIView):
+            def post(self, request):
+                username = request.data.get('username')
+                password = request.data.get('password')
+
+                user = authenticate(request, username=username, password=password)
+                if user is not None:
+                    token, created = Token.objects.get_or_create(user=user)
+                    return Response({'token': token.key}, status=200)
+
+                return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+      authenticate() returns the User if username / password match, else None.
+      get_or_create() returns the user's existing token, or makes one.
+    - user_auth/urls.py:
+        urlpatterns = [path('login/', views.LoginView.as_view(), name='login'),]
+    - peoplehub/urls.py:
+        path('auth/', include('user_auth.urls')),
+    - Login (POST /auth/login/):
+        curl --location 'http://127.0.0.1:8000/auth/login/' \
+        --header 'Content-Type: application/json' \
+        --data '{"username": "admin", "password": "..."}'
+      Response:
+        {"token": "..."}
+    - api/views.py, the list view reads the token:
+        from rest_framework.authentication import TokenAuthentication
+
+        class MultipleObjectsConcreteView(ListCreateAPIView):
+            authentication_classes = [TokenAuthentication]
+            queryset = Person.objects.all()
+            serializer_class = PersonModelSerializer
+
+            def get(self, request, *args, **kwargs):
+                print("************************************")
+                print("user is", request.user)
+                response = super().get(request, *args, **kwargs)
+                return response
+      The token goes in a header on every request:
+        Authorization: Token <token>
+    - authentication_classes only says HOW the user is identified. It does
+      not make login required (that is permission_classes). With no token
+      the request still works and request.user is AnonymousUser.
+    - "user is AnonymousUser" even though the token was passed, the reasons:
+        1. curl with --data and no --request GET is a POST. post() -> create(),
+           the print in get() never runs.
+        2. Browser refresh of /multipleobj/: a browser never sends an
+           Authorization: Token header. Being logged in through /admin/ or
+           /api-auth/ is a session cookie, read by SessionAuthentication,
+           which is not in authentication_classes.
+        3. Postman: the Authorization tab was set (inherited from the
+           collection). Postman's warning on the hand-written header:
+             "This is a duplicate header and will be overridden by the
+              Authorization header generated by Postman."
+           So the token header never reached the server.
+           Fix: Authorization tab -> No Auth, keep the header in Headers.
+    - Checks against the running server:
+        Authorization: Token abc        -> 401 {"detail": "Invalid token."}
+        Authorization: Token <real one> -> 200, terminal: user is admin
+        PowerShell: curl.exe http://127.0.0.1:8000/multipleobj/ -H "Authorization: Token <token>"
+          -> user is admin
+      Wrong token = 401, no token = AnonymousUser. Postman worked after
+      the Authorization tab was set to No Auth.
+
+![Postman: the Authorization header overridden by the one Postman generates](screenshots/postman-duplicate-authorization-header.png)
+
 ## Helpful resources
 
     - Django docs:

@@ -13,6 +13,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.generics import GenericAPIView, ListCreateAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.mixins import ListModelMixin, CreateModelMixin, RetrieveModelMixin, UpdateModelMixin, DestroyModelMixin
+from rest_framework.authentication import TokenAuthentication
 
 # Create your views here.
 @api_view(['GET', 'PUT', 'PATCH'])
@@ -130,5 +131,12 @@ class SingleObjectConcreteView(RetrieveUpdateDestroyAPIView):
 
 class MultipleObjectsConcreteView(ListCreateAPIView):
     # GET (list), POST (create) - all built in
+    authentication_classes = [TokenAuthentication]  # No authentication required for this view
     queryset = Person.objects.all()
     serializer_class = PersonModelSerializer
+
+    def get(self, request, *args, **kwargs):
+        print("************************************")
+        print("user is", request.user)  # Print the user making the request
+        response = super().get(request, *args, **kwargs)  # Call the parent class's get method
+        return response  # Return the response from the parent class's get method
