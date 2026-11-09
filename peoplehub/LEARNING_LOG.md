@@ -1350,6 +1350,39 @@
 
 ![Slide: PageNumberPagination, response](screenshots/page-number-pagination-response-slide.png)
 
+## PageNumberPagination in peoplehub
+
+    - First only 'PAGE_SIZE': 10 was in REST_FRAMEWORK, and /multipleobj/
+      still returned a plain list. DRF's default pagination class is None
+      (no pagination); without a class PAGE_SIZE is ignored.
+    - peoplehub/settings.py:
+        REST_FRAMEWORK = {
+            # 'DEFAULT_AUTHENTICATION_CLASSES': [...]   (old block, commented)
+            # 'DEFAULT_PERMISSION_CLASSES': [...]       (commented -> AllowAny again)
+            'DEFAULT_AUTHENTICATION_CLASSES': [
+                'rest_framework.authentication.TokenAuthentication',     # Use TokenAuthentication for authentication
+            ],
+            'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',  # ?page=N, response has count / next / previous / results
+            'PAGE_SIZE': 2,  # Default page size for pagination
+        }
+      DEFAULT_PERMISSION_CLASSES commented out -> the default AllowAny,
+      /multipleobj/ works without a token again (a token still identifies
+      the user).
+    - With PAGE_SIZE 10 (8 people, one page):
+        {"count": 8, "next": null, "previous": null, "results": [...8...]}
+    - With PAGE_SIZE 2 (test client):
+        /multipleobj/        -> 200 count 8, next ?page=2, previous null,   results: Sachin max, vettel
+        /multipleobj/?page=2 -> 200 count 8, next ?page=3, previous /multipleobj/, results: max, ocon
+        /multipleobj/?page=4 -> 200 count 8, next null,    previous ?page=3, results: liam, arvid
+        /multipleobj/?page=5 -> 404 {"detail": "Invalid page."}
+      Page 1's link has no ?page=1, just /multipleobj/.
+    - Warning in the terminal:
+        UnorderedObjectListWarning: Pagination may yield inconsistent results
+        with an unordered object_list: <class 'api.models.Person'> QuerySet.
+      Person.objects.all() has no fixed order, so across pages the database
+      could return rows in a different order (a person twice or skipped).
+      Fix: queryset = Person.objects.all().order_by('id')
+
 ## Helpful resources
 
     - Django docs:
