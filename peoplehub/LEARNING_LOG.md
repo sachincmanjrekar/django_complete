@@ -1251,13 +1251,27 @@
             def create(self, validated_data):
                 # create_user() hashes the password; User.objects.create() would store it as plain text
                 return User.objects.create_user(**validated_data)
-      Why a serializer:
-        is_valid() checks from the User model: fields present, username
-          not taken, length / allowed characters.
-        create_user() stores the password hashed (pbkdf2_sha256$...).
-          A plain save would use objects.create() -> plain text, and
-          login would never match.
-        write_only=True -> the password is never in serializer.data.
+      Why a serializer: not strictly required (register could read
+      request.data.get('username') by hand like LoginView), but it does
+      three jobs that would otherwise be written by hand:
+        1. Validation from the User model, all in is_valid(raise_exception=True):
+             username / password present -> else 400 "This field is required."
+             username not taken          -> else 400 "A user with that username already exists."
+             username not too long, only allowed characters
+           Without it: if not username: ...,
+           if User.objects.filter(username=username).exists(): ..., and so on.
+        2. Hashing the password: serializer.save() calls create() ->
+           create_user() stores it hashed (pbkdf2_sha256$...). A plain
+           ModelSerializer save uses User.objects.create() -> plain text,
+           and login would never work (Django compares hashes).
+        3. write_only=True: the password is accepted in the request but
+           never in serializer.data, so returning serializer.data
+           (e.g. {"username": "liam"}) can't leak it.
+      Separate file = same pattern as api/serializers.py: views handle the
+      request / response, serializers the data checks and conversion, so
+      the view stays short (validate, save, make a token).
+      email removed from fields -> register takes only username and
+      password, email is saved empty.
     - user_auth/views.py:
         class RegisterView(APIView):
             permission_classes = []  # Overrides the global IsAuthenticated: anyone can register
@@ -1291,6 +1305,50 @@
         POST /auth/logout/ with the token      -> 200 {"message": "Logged out"}
         GET /multipleobj/ same token again     -> 401 {"detail": "Invalid token."}
         login again                            -> 200, a new token
+
+## Pagination (course slides)
+
+    - Pagination = splitting a large dataset into smaller, manageable
+      chunks (pages) and returning them one page at a time.
+      Instead of all records in one response, the API returns:
+        a subset of the data
+        + metadata like the total count and next / previous page links
+    - Why pagination:
+        Performance & speed: thousands of records in one response is slow;
+        pages keep responses fast and lightweight; less load on the
+        database and server.
+        Better user experience: frontends show limited items per page
+        (e.g. 10-50); users scroll or click "Next" instead of waiting;
+        enables infinite scroll, page numbers, etc.
+    - PageNumberPagination: accepts a single page number in the request
+      query parameters.
+        Request:
+          GET https://api.example.org/accounts/?page=4
+        Setup (settings.py):
+          REST_FRAMEWORK = {
+              'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+              'PAGE_SIZE': 10
+          }
+        Response:
+          {
+            "count": 120,
+            "next": "http://api.example.com/users/?page=3",
+            "previous": "http://api.example.com/users/?page=1",
+            "results": [
+              {"id": 3, "username": "alex"},
+              {"id": 4, "username": "sophia"}
+            ]
+          }
+        count = total records, next / previous = links to the other pages
+        (null on the last / first page), results = only this page's records.
+
+![Slide: Pagination](screenshots/pagination-slide.png)
+
+![Slide: Why pagination](screenshots/why-pagination-slide.png)
+
+![Slide: PageNumberPagination, request and setup](screenshots/page-number-pagination-setup-slide.png)
+
+![Slide: PageNumberPagination, response](screenshots/page-number-pagination-response-slide.png)
 
 ## Helpful resources
 
