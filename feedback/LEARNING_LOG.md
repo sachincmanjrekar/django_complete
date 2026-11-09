@@ -1412,6 +1412,124 @@
 
 ## Section 18 complete (Sessions)
 
+## Section 19 begins (Middleware)
+
+## What middleware is
+
+    - Middleware = code that runs around EVERY request: before it reaches
+      the view, and on the response on the way back. A chain of layers
+      around the views, listed in settings.MIDDLEWARE.
+        Request  -> Security -> Session -> Common -> Csrf -> Auth -> Messages -> XFrame -> view
+        Response <- Security <- Session <- Common <- Csrf <- Auth <- Messages <- XFrame <- view
+      Request: top to bottom. Response: bottom to top (like an onion).
+    - The defaults, all used already:
+        SecurityMiddleware          -> HTTPS redirect, security headers
+        SessionMiddleware           -> loads / saves request.session (sessionid cookie, Section 18)
+        CommonMiddleware            -> APPEND_SLASH (the PUT-without-slash RuntimeError in peoplehub)
+        CsrfViewMiddleware          -> 403 for a POST without a valid CSRF token (Section 10)
+        AuthenticationMiddleware    -> sets request.user (from the session)
+        MessageMiddleware           -> django.contrib.messages (flash messages)
+        XFrameOptionsMiddleware     -> X-Frame-Options: DENY (no embedding in an iframe -> clickjacking)
+    - Order matters: AuthenticationMiddleware reads the user FROM the
+      session, so it must come after SessionMiddleware.
+    - Shape of a middleware (a class):
+        __init__(self, get_response) -> ONCE at server start; get_response = the next layer
+        __call__(self, request)      -> EVERY request:
+                                          code before  = request on its way in
+                                          response = self.get_response(request)
+                                          code after   = response on its way out
+                                          return response
+      Returning a response WITHOUT calling get_response = short-circuit:
+      the layers below and the view never run.
+    - Optional hooks:
+        process_view(request, view_func, view_args, view_kwargs) -> just before the view, knows which view
+        process_exception(request, exception)                    -> the view raised an error
+        process_template_response(request, response)             -> TemplateResponse before rendering
+    - DRF authentication (TokenAuthentication) is NOT middleware: it runs
+      inside the DRF view, so request.user in a DRF view can be the token
+      user even when AuthenticationMiddleware found nobody (peoplehub).
+    - Use cases: logging / timing, blocking IPs, maintenance mode, adding
+      headers, CORS (django-cors-headers is a middleware), language
+      selection (LocaleMiddleware).
+
+## TimingMiddleware + MaintenanceModeMiddleware
+
+    - reviews/middleware.py (new):
+        import time
+
+        from django.conf import settings
+        from django.http import HttpResponse
+
+
+        class TimingMiddleware:
+            # Runs around EVERY request: measures how long the rest of the chain (other middleware + view) takes
+
+            def __init__(self, get_response):
+                # Called ONCE, when the server starts. get_response = the next layer (eventually the view)
+                self.get_response = get_response
+
+            def __call__(self, request):
+                # Called for EVERY request
+                start = time.perf_counter()                       # Before the view: the request on its way in
+
+                response = self.get_response(request)             # Hand over to the next layer -> ... -> view
+
+                duration_ms = (time.perf_counter() - start) * 1000  # After the view: the response on its way out
+                response["X-Response-Time"] = f"{duration_ms:.1f}ms"  # Add a header to every response
+                print(f"[timing] {request.method} {request.path} -> {response.status_code} in {duration_ms:.1f}ms")
+                return response
+
+
+        class MaintenanceModeMiddleware:
+            # Short-circuit: when MAINTENANCE_MODE is on, answer 503 WITHOUT calling the view (admin stays reachable)
+
+            def __init__(self, get_response):
+                self.get_response = get_response
+
+            def __call__(self, request):
+                if getattr(settings, "MAINTENANCE_MODE", False) and not request.path.startswith("/admin"):
+                    return HttpResponse("Site under maintenance, back soon.", status=503)  # Never calls get_response -> view never runs
+
+                return self.get_response(request)
+    - feedback/settings.py, at the end of MIDDLEWARE:
+        'reviews.middleware.TimingMiddleware',  # Ours: X-Response-Time header + a log line for every request
+        'reviews.middleware.MaintenanceModeMiddleware',  # Ours: 503 for everything (except /admin) when MAINTENANCE_MODE = True
+      and at the end of the file:
+        MAINTENANCE_MODE = False  # True -> every page except /admin answers 503 (MaintenanceModeMiddleware)
+    - Checked (test client):
+        GET /reviews  -> 200, X-Response-Time: 51.0ms
+                         terminal: [timing] GET /reviews -> 200 in 51.0ms
+        GET /nope     -> 404, X-Response-Time: 4.7ms   (404s pass through middleware too)
+        MAINTENANCE_MODE = True:
+          GET /reviews -> 503 "Site under maintenance, back soon.", X-Response-Time: 0.0ms
+          GET /admin/  -> 302 (to the admin login, still reachable)
+    - The order shows: TimingMiddleware is ABOVE MaintenanceModeMiddleware,
+      so it still wraps the 503 (0.0ms: the view never ran). With
+      Maintenance above Timing, the 503 would return before Timing and
+      have no X-Response-Time header.
+
+## Middleware self-check answers
+
+    - Why must AuthenticationMiddleware come after SessionMiddleware?
+      It sets request.user from the user id stored IN the session
+      (_auth_user_id); request.session only exists after SessionMiddleware.
+      Wrong order -> no session to read, and Django's system check errors.
+    - What if a middleware returns a response without calling get_response?
+      Short-circuit: the middleware below it and the view never run; the
+      response goes straight back up through the ones above
+      (MaintenanceModeMiddleware's 503, CsrfViewMiddleware's 403).
+    - Response order? The reverse: request top to bottom, response bottom
+      to top. The first in the list sees the request first and the
+      response last (why TimingMiddleware above Maintenance still timed
+      the 503).
+    - Why didn't TokenAuthentication need middleware (peoplehub)?
+      DRF authenticates INSIDE the view: APIView runs
+      authentication_classes and sets request.user from the token header.
+      Django's AuthenticationMiddleware only knows session logins, so it
+      finds AnonymousUser; DRF replaces that inside the view.
+
+## Section 19 complete (Middleware)
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
