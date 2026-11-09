@@ -1530,6 +1530,119 @@
 
 ## Section 19 complete (Middleware)
 
+## Section 20 begins (Authentication)
+
+## Authentication in Django: how it works
+
+    - Authentication = WHO is this user (log in, log out, sign up).
+      Authorization = what may they do (Section 21).
+    - Pieces (all in a new project already):
+        django.contrib.auth       -> User model (username, password, email,
+                                     is_staff, is_superuser, groups, permissions)
+        SessionMiddleware         -> request.session
+        AuthenticationMiddleware  -> request.user (from the session)
+    - The 3 functions:
+        authenticate(request, username=..., password=...) -> the User if they match, else None
+                                       (checks the HASH, never stores the plain password)
+        login(request, user)  -> stores the user in the session + cycle_key()
+                                 (new session key -> no session fixation)
+        logout(request)       -> session.flush() (data deleted, new key)
+    - After login() the session holds:
+        {'_auth_user_id': '1',
+         '_auth_user_backend': 'django.contrib.auth.backends.ModelBackend',
+         '_auth_user_hash': '9e5748c4...'}
+      Every request: AuthenticationMiddleware reads _auth_user_id ->
+      request.user = that User; no session / no id -> AnonymousUser.
+      _auth_user_hash comes from the password hash: changing the password
+      logs out other sessions.
+    - Passwords are stored hashed: pbkdf2_sha256$1500000$<salt>$<hash>
+      (algorithm, iterations, salt, hash). create_user() / set_password()
+      / UserCreationForm hash; never assign user.password = "..." directly.
+    - In templates: {{ user }}, {{ user.username }}, {% if user.is_authenticated %}
+      (the auth context processor adds 'user' to every template).
+      In views: request.user, request.user.is_authenticated.
+    - Built-in views, include("django.contrib.auth.urls"):
+        login/  logout/  password_change/  password_change/done/
+        password_reset/  password_reset/done/  reset/<uidb64>/<token>/  reset/done/
+      They look for templates in registration/ (registration/login.html, ...).
+    - Logout must be a POST since Django 5 (GET -> 405), so a link can't
+      log anyone out (CSRF-safe).
+
+## Sign up, log in, log out in feedback
+
+    - python manage.py startapp accounts; INSTALLED_APPS: 'accounts',
+    - accounts/views.py:
+        from django.contrib.auth import login
+        from django.contrib.auth.forms import UserCreationForm
+        from django.urls import reverse_lazy
+        from django.views.generic.edit import CreateView
+
+        class SignUpView(CreateView):
+            form_class = UserCreationForm               # Built-in: username + password1 + password2, validated and hashed
+            template_name = "registration/signup.html"
+            success_url = reverse_lazy("review-list")   # reverse_lazy: the URLs aren't loaded yet when the class is defined
+
+            def form_valid(self, form):
+                response = super().form_valid(form)     # Saves the new User (self.object), redirect to success_url
+                login(self.request, self.object)        # Log the new user in right away (puts their id in the session)
+                return response
+    - accounts/urls.py:
+        urlpatterns = [
+            path("signup/", views.SignUpView.as_view(), name="signup"),
+            # Django's built-in auth views: login/, logout/, password_change/, password_reset/, ...
+            path("", include("django.contrib.auth.urls")),
+        ]
+      feedback/urls.py:
+        path("accounts/", include("accounts.urls")),  # signup + Django's login / logout / password views
+      reviews/urls.py, a name for the list (used by the redirects):
+        path("reviews", views.ReviewListView.as_view(), name="review-list"),
+    - feedback/settings.py:
+        LOGIN_URL = "login"              # Where login_required / LoginRequiredMixin send anonymous users (Section 21)
+        LOGIN_REDIRECT_URL = "review-list"   # After login (when there is no ?next=)
+        LOGOUT_REDIRECT_URL = "review-list"  # After logout
+    - accounts/templates/registration/login.html (the name LoginView looks for):
+        {% if form.errors %}
+        <p>Wrong username or password.</p>
+        {% endif %}
+        <form method="POST">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <input type="hidden" name="next" value="{{ next }}">  {# Where to go after login, e.g. ?next=/reviews #}
+            <button>Log in</button>
+        </form>
+      accounts/templates/registration/signup.html: the same form with
+      {{ form.as_p }} and <button>Sign up</button>.
+      Both {% extends "reviews/base.html" %}.
+    - reviews/templates/reviews/base.html, a nav on every page:
+        <nav>
+            {% if user.is_authenticated %}
+            Hello, {{ user.username }} ·
+            <form action="{% url 'logout' %}" method="POST" style="display:inline">
+                {% csrf_token %}
+                <button>Log out</button>  {# Logout must be a POST since Django 5 #}
+            </form>
+            {% else %}
+            <a href="{% url 'login' %}">Log in</a> · <a href="{% url 'signup' %}">Sign up</a>
+            {% endif %}
+        </nav>
+    - Checked (test client, rolled back):
+        anonymous nav                    -> Log in · Sign up
+        signup, passwords differ         -> 200 "The two password fields didn't match."
+        signup, password "123"           -> 200 "This password is too short. It must contain at least
+                                            8 characters." / "too common" / "entirely numeric"
+                                            (AUTH_PASSWORD_VALIDATORS in settings.py)
+        signup liam / Str0ng!pass        -> 302 /reviews, logged in
+        stored password                  -> pbkdf2_sha256$1500000$...
+        session                          -> {'_auth_user_id': '1', '_auth_user_backend': '...ModelBackend',
+                                             '_auth_user_hash': '9e5748c4...'}
+        logged-in nav                    -> Hello, liam · Log out
+        GET /accounts/logout/            -> 405
+        POST /accounts/logout/           -> 302 /reviews, nav back to Log in · Sign up
+        signup liam again                -> 200 "A user with that username already exists."
+        login, wrong password            -> 200 "Wrong username or password."
+        login with next=/reviews/2       -> 302 /reviews/2, new session key (cycle_key)
+        /accounts/password_change/, /accounts/password_reset/ -> work (built in)
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):

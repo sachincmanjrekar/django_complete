@@ -38,7 +38,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'reviews',
-    'profiles'
+    'profiles',
+    'accounts',
 ]
 
 MIDDLEWARE = [
@@ -134,3 +135,7 @@ MEDIA_ROOT = BASE_DIR / "uploads"
 MEDIA_URL = "/user-media/"
 
 MAINTENANCE_MODE = False  # True -> every page except /admin answers 503 (MaintenanceModeMiddleware)
+
+LOGIN_URL = "login"              # Where login_required / LoginRequiredMixin send anonymous users (Section 21)
+LOGIN_REDIRECT_URL = "review-list"   # After login (when there is no ?next=)
+LOGOUT_REDIRECT_URL = "review-list"  # After logout

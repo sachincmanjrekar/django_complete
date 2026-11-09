@@ -11,6 +11,17 @@
     <link rel="stylesheet" href="{% static 'reviews/styles.css' %}">
 </head>
 <body>
+    <nav>
+        {% if user.is_authenticated %}
+        Hello, {{ user.username }} ·
+        <form action="{% url 'logout' %}" method="POST" style="display:inline">
+            {% csrf_token %}
+            <button>Log out</button>  {# Logout must be a POST since Django 5 #}
+        </form>
+        {% else %}
+        <a href="{% url 'login' %}">Log in</a> · <a href="{% url 'signup' %}">Sign up</a>
+        {% endif %}
+    </nav>
     {% block content %}
     {% endblock %}
 </body>
