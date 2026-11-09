@@ -1185,6 +1185,107 @@
 
 ## Section 13 complete (Sessions)
 
+## Section 17 begins (Cookies)
+
+## What a cookie is
+
+    - A cookie = a small name=value string the SERVER asks the BROWSER to
+      store; the browser sends it back automatically on every request to
+      that site.
+        response:       Set-Cookie: last_viewed_review=3; Max-Age=604800; HttpOnly; SameSite=Lax
+        every request:  Cookie: last_viewed_review=3; csrftoken=...; sessionid=...
+    - HTTP is stateless (a request knows nothing about earlier ones);
+      cookies are how a site remembers a browser. Sessions, CSRF and login
+      are all built on cookies.
+    - In Django:
+        set (on the response)    response.set_cookie("name", value, max_age=...)
+        read (from the request)  request.COOKIES.get("name")   -> always a string, or None
+        delete                   response.delete_cookie("name")
+        set, tamper-proof        response.set_signed_cookie("name", value)
+        read, tamper-proof       request.get_signed_cookie("name", default=None)
+    - set_cookie options:
+        max_age=3600 / expires=datetime -> lifetime; neither = a "session
+                       cookie", deleted when the browser closes
+        httponly=True  -> JavaScript (document.cookie) can't read it -> XSS
+                          can't steal it (Django's sessionid is HttpOnly)
+        secure=True    -> only sent over HTTPS
+        samesite="Lax" / "Strict" / "None" -> sent or not on requests coming
+                          from OTHER sites -> CSRF defense (Lax = default)
+        path / domain  -> which URLs it is sent to
+    - Limits / risks: about 4 KB per cookie; the user can see AND change
+      every cookie (DevTools), so never trust a plain cookie for anything
+      important. set_signed_cookie adds a signature made with SECRET_KEY:
+      an edited value is detected; the value is still readable, just not
+      changeable.
+    - Cookie vs session:
+                       cookie                        session
+        data stored    in the browser                on the server (django_session table)
+        browser holds  the data itself               only a sessionid cookie (random key)
+        user can       read + change (unless signed) neither
+        size           ~4 KB                         no practical limit
+        use for        preferences, last viewed      login state, carts, sensitive data
+
+## Last viewed review (plain cookie) + visit counter (signed cookie)
+
+    - reviews/views.py, SingleReviewView sets both cookies on its response:
+        def get(self, request, *args, **kwargs):
+            response = super().get(request, *args, **kwargs)  # The normal DetailView response
+            response.set_cookie(
+                "last_viewed_review", self.object.id,
+                max_age=60 * 60 * 24 * 7,  # 1 week
+                httponly=True,             # JavaScript can't read it
+                samesite="Lax",            # Not sent on requests coming from other sites
+            )
+            visits = request.get_signed_cookie("review_visits", default=0)  # Tampered or missing -> 0
+            response.set_signed_cookie("review_visits", int(visits) + 1)    # No max_age: gone when the browser closes
+            return response
+      A cookie is set on the RESPONSE, so get() lets the DetailView build
+      its response first, then adds the cookies to it.
+    - ReviewListView reads them from the request:
+        def get_context_data(self, **kwargs):
+            context = super().get_context_data(**kwargs)
+            context["last_viewed_id"] = self.request.COOKIES.get("last_viewed_review")  # A string, or None
+            context["visits"] = self.request.get_signed_cookie("review_visits", default=0)  # Tampered or missing -> 0
+            return context
+    - reviews/templates/reviews/review_list.html, above the <ul>:
+        {% if last_viewed_id %}
+        <p>Last viewed: <a href="/reviews/{{ last_viewed_id }}">review {{ last_viewed_id }}</a> · reviews opened: {{ visits }}</p>
+        {% endif %}
+    - Checked (test client), open reviews 1, 2, 3, then /reviews:
+        before:      no "Last viewed" line (no cookie yet)
+        Set-Cookie:  last_viewed_review=3; expires=...; HttpOnly; Max-Age=604800; Path=/; SameSite=Lax
+        signed:      review_visits = 3:1xQWjm:5PYRqECvx67t5ey...   (value:timestamp:signature)
+        /reviews:    Last viewed: review 3 · reviews opened: 3
+        review_visits changed to 99:<same signature>
+                  -> reviews opened: 0 (signature doesn't match -> default)
+
+## 1 minute cookie + deleting cookies
+
+    - To watch it expire, last_viewed_review now lives 1 minute:
+        max_age=60,                # 1 minute (for testing; was 60 * 60 * 24 * 7 = 1 week)
+      Set-Cookie: last_viewed_review=2; expires=...21:23:46 GMT; HttpOnly; Max-Age=60; Path=/; SameSite=Lax
+      After a minute the browser drops it; /reviews no longer shows "Last viewed".
+    - reviews/views.py:
+        class ForgetCookiesView(View):
+            # Deletes both cookies, then back to the list
+            def get(self, request):
+                response = HttpResponseRedirect("/reviews")
+                response.delete_cookie("last_viewed_review")  # Sends the cookie again with Max-Age=0 -> the browser removes it
+                response.delete_cookie("review_visits")
+                return response
+      reviews/urls.py:
+        path("reviews/forget-cookies", views.ForgetCookiesView.as_view()),
+      review_list.html, at the end of the "Last viewed" line:
+        · <a href="/reviews/forget-cookies">forget cookies</a>
+    - The server can't remove a cookie from the browser directly:
+      delete_cookie() overwrites it with an already expired one:
+        Set-Cookie: last_viewed_review=""; expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Path=/
+      Checked: /reviews/forget-cookies -> 302 /reviews, no "Last viewed" line.
+    - review_visits has no max_age: it stays until the browser closes (or
+      forget cookies).
+
+## Section 17 complete (Cookies)
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):

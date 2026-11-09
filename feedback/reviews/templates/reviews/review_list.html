@@ -3,6 +3,9 @@
 {% block title %}Review List{% endblock %}
 
 {% block content %}
+{% if last_viewed_id %}
+<p>Last viewed: <a href="/reviews/{{ last_viewed_id }}">review {{ last_viewed_id }}</a> · reviews opened: {{ visits }} · <a href="/reviews/forget-cookies">forget cookies</a></p>
+{% endif %}
 <ul>
     {% for review in reviews %}
     <li>{{ review.user_name  }} (Rating: {{ review.rating }}) </li>
