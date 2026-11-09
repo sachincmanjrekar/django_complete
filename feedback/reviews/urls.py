@@ -9,6 +9,7 @@ urlpatterns = [
     path("reviews", views.ReviewListView.as_view()),
     path("reviews/favorite", views.AddfavoriteView.as_view()),
     path("reviews/forget-cookies", views.ForgetCookiesView.as_view()),
+    path("reviews/clear-session", views.ClearSessionView.as_view()),
     path("reviews/<int:pk>", views.SingleReviewView.as_view()),
 ]
 

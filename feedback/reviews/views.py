@@ -35,6 +35,12 @@ class ReviewListView(ListView):
         context = super().get_context_data(**kwargs)
         context["last_viewed_id"] = self.request.COOKIES.get("last_viewed_review")  # A string, or None
         context["visits"] = self.request.get_signed_cookie("review_visits", default=0)  # Tampered or missing -> 0
+        session = self.request.session
+        recent_ids = session.get("recent_reviews", [])
+        reviews_by_id = Review.objects.in_bulk(recent_ids)       # {id: Review}, one query
+        context["recent_reviews"] = [reviews_by_id[i] for i in recent_ids if i in reviews_by_id]  # Keep the newest-first order
+        context["session_key"] = session.session_key          # The value of the sessionid cookie (None if no session yet)
+        context["session_expires"] = session.get_expiry_date()
         return context
 
     # def get_queryset(self):
@@ -66,6 +72,13 @@ class SingleReviewView(DetailView):
         )
         visits = request.get_signed_cookie("review_visits", default=0)  # Tampered or missing -> 0
         response.set_signed_cookie("review_visits", int(visits) + 1)    # No max_age: gone when the browser closes
+
+        recent = request.session.get("recent_reviews", [])  # A list of ids, [] the first time
+        if self.object.id in recent:
+            recent.remove(self.object.id)
+        recent.insert(0, self.object.id)                     # Newest first
+        request.session["recent_reviews"] = recent[:3]       # Assigning the key -> Django saves the session
+        request.session.set_expiry(120)                      # This session ends 2 minutes after the LAST request (testing)
         return response
 
 
@@ -84,4 +97,11 @@ class ForgetCookiesView(View):
         response.delete_cookie("last_viewed_review")  # Sends the cookie again with Max-Age=0 -> the browser removes it
         response.delete_cookie("review_visits")
         return response
+
+
+class ClearSessionView(View):
+    # Ends the session: data deleted from the DB, new session key
+    def get(self, request):
+        request.session.flush()  # logout() does the same
+        return HttpResponseRedirect("/reviews")
 

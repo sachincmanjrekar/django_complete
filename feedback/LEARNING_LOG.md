@@ -1286,6 +1286,132 @@
 
 ## Section 17 complete (Cookies)
 
+## Section 18 begins (Sessions, deeper)
+
+    - Builds on Section 13 (favorite_review, 2 week default, JSON only).
+
+## How a session works inside
+
+    - 1st request: SessionMiddleware finds no sessionid cookie -> an empty
+      session. When the view writes to request.session, the middleware
+      (on the response) saves a row in django_session and sends:
+        Set-Cookie: sessionid=s19epkuumptfw0d87r6m9pzf0275nbbm; expires=...; HttpOnly; Max-Age=...
+      Next requests: the browser sends sessionid -> the middleware loads
+      that row -> request.session is filled again.
+    - django_session row:
+        session_key   = the cookie value (32 random characters)
+        session_data  = eyJyZWNlbnRfcmV2aWV3cyI6WzQsMSwzXSwiX3Nl...  (JSON, base64 + signed)
+        expire_date   = when the session stops being valid
+      row.get_decoded() -> {'recent_reviews': [4, 1, 3], '_session_expiry': 120}
+      The browser only ever has the key; the data never leaves the server.
+    - Saved only when MODIFIED. Assigning a key marks it modified; changing
+      a list / dict IN PLACE does not:
+        session['items'] = [1]          -> modified = True   (saved)
+        session['items'].append(2)      -> modified = False  (NOT saved)
+      Fix: assign again (session['items'] = items) or
+      request.session.modified = True.
+      (SESSION_SAVE_EVERY_REQUEST = True saves on every request.)
+    - Expiry:
+        request.session.set_expiry(120)      -> 120 s after the LAST request (inactivity)
+        set_expiry(0)                        -> when the browser closes
+        set_expiry(datetime)                 -> at that time
+        set_expiry(None)                     -> back to SESSION_COOKIE_AGE (2 weeks)
+        get_expiry_date() / get_expiry_age() -> read it
+        SESSION_EXPIRE_AT_BROWSER_CLOSE = True -> for all sessions
+    - Ending a session:
+        del request.session['key'] -> removes one value
+        request.session.clear()    -> removes all values, same key
+        request.session.flush()    -> deletes the row + new key (logout() does this)
+        request.session.cycle_key()-> same data, new key; login() does this
+                                      against session fixation (an attacker
+                                      can't plant a known key before you log in)
+    - Expired rows stay in the table: python manage.py clearsessions
+      deletes them (run it regularly, e.g. a cron job).
+    - SESSION_ENGINE (where the data lives):
+        backends.db            -> django_session table (default)
+        backends.cache         -> cache (fast, lost on restart)
+        backends.cached_db     -> cache + DB (fast and kept)
+        backends.file          -> files on disk
+        backends.signed_cookies-> the data IS the cookie (signed, readable,
+                                  4 KB limit; no server storage)
+    - login() stores the user in the session: _auth_user_id,
+      _auth_user_backend, _auth_user_hash. That's how request.user
+      survives between requests (Section 20).
+
+## Recently viewed reviews (a list in the session) + clear session
+
+    - reviews/views.py, SingleReviewView.get():
+        recent = request.session.get("recent_reviews", [])  # A list of ids, [] the first time
+        if self.object.id in recent:
+            recent.remove(self.object.id)
+        recent.insert(0, self.object.id)                     # Newest first
+        request.session["recent_reviews"] = recent[:3]       # Assigning the key -> Django saves the session
+        request.session.set_expiry(120)                      # This session ends 2 minutes after the LAST request (testing)
+      The list is changed in place, so assigning it back is what marks
+      the session modified.
+    - ReviewListView.get_context_data():
+        session = self.request.session
+        recent_ids = session.get("recent_reviews", [])
+        reviews_by_id = Review.objects.in_bulk(recent_ids)       # {id: Review}, one query
+        context["recent_reviews"] = [reviews_by_id[i] for i in recent_ids if i in reviews_by_id]  # Keep the newest-first order
+        context["session_key"] = session.session_key          # The value of the sessionid cookie (None if no session yet)
+        context["session_expires"] = session.get_expiry_date()
+      Only ids in the session (JSON), the Review objects are loaded again.
+      filter(id__in=...) would lose the newest-first order, in_bulk + the
+      list keeps it.
+    - ClearSessionView:
+        class ClearSessionView(View):
+            # Ends the session: data deleted from the DB, new session key
+            def get(self, request):
+                request.session.flush()  # logout() does the same
+                return HttpResponseRedirect("/reviews")
+      reviews/urls.py:
+        path("reviews/clear-session", views.ClearSessionView.as_view()),
+    - review_list.html, above the <ul>:
+        {% if recent_reviews %}
+        <p>Recently viewed (session): {% for r in recent_reviews %}<a href="/reviews/{{ r.id }}">{{ r.user_name }}</a> {% endfor %}</p>
+        <p>Session key: {{ session_key }} · expires: {{ session_expires|date:"H:i:s" }} UTC · <a href="/reviews/clear-session">clear session</a></p>
+        {% endif %}
+    - Checked (test client, rolled back), open reviews 1, 2, 3, 1, 4:
+        /reviews  -> Recently viewed (session): max Sachin hamilton   (4, 1, 3)
+                     Session key: s19epkuumptf... · expires: 21:34:42 UTC
+        DB row    -> get_decoded() = {'recent_reviews': [4, 1, 3], '_session_expiry': 120}
+        cookie    -> sessionid=s19epkuumptf...; expires=...; HttpOnly; Max-Age=120
+        /reviews/clear-session -> 302, the row is gone, no "Recently viewed" line
+
+## get() vs get_context_data()
+
+    - get() = Django calls it for every GET request (typing the URL, a
+      link, refresh). It handles the WHOLE request and returns a RESPONSE.
+      get_context_data() = called BY get(), partway through; builds the
+      DICT of template variables.
+    - DetailView.get() inside (simplified Django source):
+        def get(self, request, *args, **kwargs):
+            self.object = self.get_object()                       # 1. load the Review by pk (404 if missing)
+            context = self.get_context_data(object=self.object)   # 2. our get_context_data runs here
+            return self.render_to_response(context)               # 3. template + context -> response
+    - GET /reviews/3:
+        our get()
+          -> super().get()
+              -> get_object()          (Review 3)
+              -> get_context_data()    (adds is_favorite)
+              -> render_to_response()  (HTML response)
+          <- back in our get(): cookies + session on that response
+    - Why the code is split this way:
+        is_favorite in get_context_data() -> only a template variable
+        set_cookie in get()               -> needs the response object, which
+                                             doesn't exist yet in get_context_data()
+        the session list in get()         -> request.session is on the request,
+                                             so either works; get() keeps the
+                                             "on each visit" side effects together
+    - Rule of thumb:
+        add data to the template              -> get_context_data()
+        change the request handling / response
+        (cookies, headers, redirects, side effects) -> get()
+        forms (POST)                          -> post()
+
+## Section 18 complete (Sessions)
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
