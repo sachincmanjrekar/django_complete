@@ -1122,6 +1122,20 @@
       Permission = is this user allowed. This is the part that blocks.
       No permission_classes -> DRF's default AllowAny, so AnonymousUser
       still got the list.
+    - Course slides: permissions define whether an authenticated (or
+      unauthenticated) request is allowed to perform a specific action on a
+      view or an object.
+        AllowAny                   everyone can access
+        IsAuthenticated            only logged-in users
+        IsAdminUser                only staff users
+        IsAuthenticatedOrReadOnly  anyone can read, only authenticated can write
+      Order: Request -> Authentication (e.g. TokenAuthentication)
+                     -> Permissions (e.g. IsAuthenticated) -> View code
+
+![Slide: Permissions](screenshots/permissions-slide.png)
+
+![Slide: Request -> Authentication -> Permissions -> View code](screenshots/permissions-flow-slide.png)
+
     - api/views.py:
         from rest_framework.permissions import IsAuthenticated
 
@@ -1149,6 +1163,66 @@
         #         'rest_framework.permissions.IsAuthenticated',
         #     ],
         # }
+
+## Global REST_FRAMEWORK settings, LoginView opened up
+
+    - peoplehub/settings.py, the block is now active, so EVERY DRF view
+      uses TokenAuthentication + IsAuthenticated:
+        REST_FRAMEWORK = {
+            'DEFAULT_AUTHENTICATION_CLASSES': [
+                'rest_framework.authentication.TokenAuthentication',
+            ],
+            'DEFAULT_PERMISSION_CLASSES': [
+                'rest_framework.permissions.IsAuthenticated',
+            ],
+        }
+    - api/views.py, the per-view lines are no longer needed, commented out:
+        # authentication_classes = [TokenAuthentication]
+        # permission_classes = [IsAuthenticated]
+    - Checked (test client):
+        /multipleobj/  no token -> 401   token -> 200
+        /singleobj/1/  no token -> 401   token -> 200  (now protected too)
+        POST /auth/login/       -> 401 {"detail": "Authentication credentials were not provided."}
+    - Problem: LoginView is a DRF APIView too, so it got the global
+      IsAuthenticated. Logging in needed a valid token of any existing
+      user, so a new user could never get one.
+    - Fix, user_auth/views.py (a setting on the view overrides settings.py):
+        class LoginView(APIView):
+            permission_classes = []  # Overrides the global IsAuthenticated: anyone can try to log in
+            authentication_classes = []  # No authentication required for login
+      permission_classes = []      -> no checks, same as [AllowAny]
+      authentication_classes = []  -> the token header is not read at all,
+                                      so even a wrong / old token can't break login
+    - Checked (test client):
+        login, no token          -> reaches the view, {"error": "Invalid credentials"} (wrong password)
+        login, Token abc         -> same, the bad token is ignored
+        /multipleobj/, no token  -> 401
+    - The browsable API (browser, /api-auth/login/) gets 401 now: the
+      browser can't send a token and SessionAuthentication is not in the
+      defaults.
+
+## Authentication class vs permission class
+
+    - Authentication class = WHO are you?
+        looks at the request (token header, session cookie)
+        sets request.user (a real user, or AnonymousUser)
+        bad token -> 401 "Invalid token."; no token is NOT a failure,
+        just AnonymousUser
+        e.g. TokenAuthentication, SessionAuthentication, BasicAuthentication
+        setting: authentication_classes
+    - Permission class = are you ALLOWED?
+        looks at request.user (set by authentication), the method, the object
+        allow or deny: 401 (not logged in) / 403 (logged in, not allowed)
+        e.g. AllowAny, IsAuthenticated, IsAdminUser, IsAuthenticatedOrReadOnly
+        setting: permission_classes
+    - Order: Request -> Authentication -> Permission -> view code
+    - Office building: authentication = the receptionist checking your ID
+      card (no card -> "visitor"); permission = the door lock deciding if
+      that person may enter the room.
+    - Seen in this project:
+        token auth only, no permission    -> no token = AnonymousUser, list still returned
+        token auth + IsAuthenticated      -> no token = 401
+        LoginView, both []                -> nobody identified, nothing checked, anyone gets in
 
 ## Helpful resources
 

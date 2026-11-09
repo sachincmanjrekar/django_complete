@@ -132,8 +132,8 @@ class SingleObjectConcreteView(RetrieveUpdateDestroyAPIView):
 
 class MultipleObjectsConcreteView(ListCreateAPIView):
     # GET (list), POST (create) - all built in
-    authentication_classes = [TokenAuthentication]  # Who is the user: read the token from the Authorization header
-    permission_classes = [IsAuthenticated]  # No valid token -> 401, the view does not run
+    # authentication_classes = [TokenAuthentication]  # Who is the user: read the token from the Authorization header
+    # permission_classes = [IsAuthenticated]  # No valid token -> 401, the view does not run
     queryset = Person.objects.all()
     serializer_class = PersonModelSerializer
 
