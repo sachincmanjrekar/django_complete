@@ -1643,6 +1643,19 @@
         login with next=/reviews/2       -> 302 /reviews/2, new session key (cycle_key)
         /accounts/password_change/, /accounts/password_reset/ -> work (built in)
 
+## reverse() vs reverse_lazy()
+
+    - reverse("review-list") -> "/reviews": URL NAME -> path, no hard-coded
+      paths.
+    - success_url is a CLASS attribute: it runs when Python loads views.py,
+      before Django has loaded the URL patterns -> reverse() there crashes.
+      reverse_lazy() waits and looks the path up only when it is used
+      (after a successful sign up).
+    - Rule: inside a method (a request is being handled) -> reverse();
+      class attributes, settings -> reverse_lazy().
+
+## Section 20 complete (Authentication)
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
