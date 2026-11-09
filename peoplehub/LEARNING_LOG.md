@@ -1224,6 +1224,74 @@
         token auth + IsAuthenticated      -> no token = 401
         LoginView, both []                -> nobody identified, nothing checked, anyone gets in
 
+## Login with obtain_auth_token, register and logout
+
+    - user_auth/urls.py:
+        from rest_framework.authtoken.views import obtain_auth_token
+
+        urlpatterns = [
+            path('login/', obtain_auth_token, name='login'),
+            path('register/', views.RegisterView.as_view(), name='register'),
+            path('logout/', views.LogoutView.as_view(), name='logout'),
+        ]
+      obtain_auth_token = DRF's built-in login view: POST username +
+      password -> {"token": "..."}, the same job as our LoginView (which
+      is still in views.py, no URL points to it now).
+    - user_auth/serializers.py (new):
+        from django.contrib.auth.models import User
+        from rest_framework import serializers
+
+        class RegisterSerializer(serializers.ModelSerializer):
+            password = serializers.CharField(write_only=True)  # Accepted on input, never sent back in a response
+
+            class Meta:
+                model = User
+                fields = ['username', 'password']
+
+            def create(self, validated_data):
+                # create_user() hashes the password; User.objects.create() would store it as plain text
+                return User.objects.create_user(**validated_data)
+      Why a serializer:
+        is_valid() checks from the User model: fields present, username
+          not taken, length / allowed characters.
+        create_user() stores the password hashed (pbkdf2_sha256$...).
+          A plain save would use objects.create() -> plain text, and
+          login would never match.
+        write_only=True -> the password is never in serializer.data.
+    - user_auth/views.py:
+        class RegisterView(APIView):
+            permission_classes = []  # Overrides the global IsAuthenticated: anyone can register
+            authentication_classes = []  # No token needed to register
+
+            def post(self, request):
+                serializer = RegisterSerializer(data=request.data)
+                serializer.is_valid(raise_exception=True)  # 400 if username is taken / fields are missing
+                user = serializer.save()  # Calls RegisterSerializer.create() -> create_user()
+                token = Token.objects.create(user=user)  # New user, so a new token
+                return Response({'token': token.key}, status=status.HTTP_201_CREATED)
+
+
+        class LogoutView(APIView):
+            # No overrides: the global TokenAuthentication + IsAuthenticated apply,
+            # so only a request with a valid token gets here (no token -> 401)
+
+            def post(self, request):
+                request.user.auth_token.delete()  # Delete this user's token; it stops working at once
+                return Response({'message': 'Logged out'}, status=status.HTTP_200_OK)
+      Logout = delete the token. request.user is the user TokenAuthentication
+      found from the header, auth_token is that user's Token row.
+    - Checked (test client, rolled back):
+        POST /auth/register/ {"username": "liam", "password": "..."}  -> 201 {"token": "..."}
+        password in the DB                     -> pbkdf2_sha256$... (hashed)
+        register liam again                    -> 400 {"username": ["A user with that username already exists."]}
+        register without password              -> 400 {"password": ["This field is required."]}
+        POST /auth/login/ as liam              -> 200, the same token
+        GET /multipleobj/ with liam's token    -> 200
+        POST /auth/logout/ no token            -> 401
+        POST /auth/logout/ with the token      -> 200 {"message": "Logged out"}
+        GET /multipleobj/ same token again     -> 401 {"detail": "Invalid token."}
+        login again                            -> 200, a new token
+
 ## Helpful resources
 
     - Django docs:
