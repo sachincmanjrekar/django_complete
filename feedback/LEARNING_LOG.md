@@ -1656,6 +1656,126 @@
 
 ## Section 20 complete (Authentication)
 
+## Section 21 begins (Authorization)
+
+## Authorization in Django: the tools
+
+    - Authorization = what a known user may DO (authentication = who).
+    - 3 kinds of rule:
+        1. logged in at all?   -> login_required / LoginRequiredMixin
+        2. YOUR object?        -> UserPassesTestMixin (test_func) or filter
+                                  the queryset by owner
+        3. a role / permission -> PermissionRequiredMixin, user.has_perm()
+    - Mixins go LEFT of the view class (they run first, in dispatch()):
+        class ReviewView(LoginRequiredMixin, CreateView)
+      Function views: @login_required, @permission_required("app.perm"),
+      @user_passes_test(func).
+    - What happens on failure:
+        anonymous               -> 302 to LOGIN_URL?next=<this page>
+        logged in, not allowed  -> 403 Forbidden (PermissionDenied)
+      Django never sends 401 for pages (it redirects to the login page).
+      DRF: 401 = no / bad credentials, 403 = known user, not allowed.
+    - Permissions: migrate creates 4 per model:
+        reviews.add_review  reviews.change_review  reviews.delete_review  reviews.view_review
+      ("<app_label>.<action>_<model>"). Given to a user directly or to a
+      GROUP (a role, e.g. Moderators); a user gets all their groups' perms.
+        user.has_perm("reviews.delete_review")
+        is_superuser -> has every permission; is_staff -> may log in to /admin
+      Templates: {% if perms.reviews.delete_review %} (perms in every template).
+    - Hiding a link is NOT security: the view must check again (a user can
+      type the URL).
+    - Ownership: filtering the queryset by owner (todo project) -> someone
+      else's object is 404 (they can't even tell it exists);
+      UserPassesTestMixin -> 403 (it exists, you may not touch it).
+
+## Review owner, owner-only edit, moderator-only delete
+
+    - reviews/models.py:
+        from django.contrib.auth.models import User
+        owner = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)  # Who wrote it; null for the old reviews (made before login existed)
+      python manage.py makemigrations reviews -> 0002_review_owner.py, Add field owner to review
+      python manage.py migrate reviews
+      null=True: the existing reviews have no owner (so nobody can edit them).
+    - reviews/forms.py, ReviewForm:
+        exclude = ['owner']  # Set by the view from request.user, never chosen in the form ('__all__' would show it)
+    - reviews/views.py:
+        from django.views.generic.edit import CreateView, UpdateView, DeleteView
+        from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin, PermissionRequiredMixin
+
+        class ReviewView(LoginRequiredMixin, CreateView):
+            # Anonymous -> redirect to LOGIN_URL with ?next=/ (back here after login)
+            ...
+            def form_valid(self, form):
+                form.instance.owner = self.request.user  # The logged-in user owns the new review
+                return super().form_valid(form)
+
+
+        class ReviewUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+            # Only the review's owner may edit it: anonymous -> login page, logged in but not the owner -> 403
+            model = Review
+            form_class = ReviewForm
+            template_name = "reviews/review.html"
+
+            def test_func(self):
+                return self.get_object().owner == self.request.user  # True -> allowed, False -> 403 Forbidden
+
+            def get_success_url(self):
+                return f"/reviews/{self.object.id}"
+
+
+        class ReviewDeleteView(LoginRequiredMixin, PermissionRequiredMixin, DeleteView):
+            # Only users with the delete_review permission (a moderator, or a superuser) may delete
+            model = Review
+            permission_required = "reviews.delete_review"  # "<app_label>.<action>_<model>", created by migrate
+            template_name = "reviews/review_confirm_delete.html"
+            success_url = "/reviews"
+    - reviews/urls.py:
+        path("reviews/<int:pk>/edit", views.ReviewUpdateView.as_view()),
+        path("reviews/<int:pk>/delete", views.ReviewDeleteView.as_view()),
+    - review.html: <form action="" method="POST"> (was action="/"):
+      "" posts back to the current URL, so the edit page reuses the template.
+    - single_review.html:
+        <p>Written by: {{ review.owner.username|default:"(before login existed)" }}</p>
+        {% if review.owner == user %}
+        <a href="/reviews/{{ review.id }}/edit">Edit</a>  {# Only the owner sees it (the view checks again: hiding a link is not security) #}
+        {% endif %}
+        {% if perms.reviews.delete_review %}
+        <a href="/reviews/{{ review.id }}/delete">Delete</a>  {# perms = the logged-in user's permissions, in every template #}
+        {% endif %}
+    - review_confirm_delete.html (new): "Delete the review by ...?", a POST
+      form with <button>Yes, delete</button> and a Cancel link. DeleteView:
+      GET shows this page, only POST deletes.
+    - Checked (test client, rolled back): liam (owner), bob (another
+      user), mia (in a "Moderators" group with reviews.delete_review):
+        anonymous GET /              -> 302 /accounts/login/?next=/
+        liam POST / with owner=bob   -> 302 /thank-you, owner saved = liam (owner field ignored)
+        links on the review: liam ['Edit'], bob [], mia ['Delete']
+        anonymous /reviews/12/edit   -> 302 (login page)
+        bob GET / POST edit          -> 403 / 403
+        liam POST edit               -> 302 /reviews/12, text changed to "even better"
+        liam /reviews/12/delete      -> 403 (owner, but no delete permission)
+        mia GET delete               -> 200 (confirm page)
+        mia POST delete              -> 302 /reviews, review deleted
+        has_perm("reviews.delete_review"): mia True, bob False
+
+## Adding a review as a new user + clickable review list
+
+    - Steps: sign up at /accounts/signup/ (logged in right away) -> open /
+      -> fill the form -> Submit -> /thank-you -> the review shows
+      "Written by: <username>" and an Edit link (owner).
+      Logged out, / redirects to /accounts/login/?next=/ and comes back
+      to the form after login.
+    - "Your Name" (user_name) is just text; the owner is always the
+      logged-in user (set in form_valid).
+    - The existing reviews (ids 1-8, 10) were typed into the form at /
+      in Sections 10-11, before login existed -> owner = None. Id 9 was
+      deleted; database ids are never reused.
+    - review_list.html, each name links to its review:
+        <li><a href="/reviews/{{ review.id }}">{{ review.user_name }}</a> (Rating: {{ review.rating }}) </li>
+      (was plain text, so a review could only be opened by typing /reviews/<id>)
+
+## Section 21 complete (Authorization)
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):

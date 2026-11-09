@@ -4,15 +4,20 @@ from django.views import View
 from .forms import ReviewForm
 from django.views.generic.base import TemplateView
 from django.views.generic import ListView, DetailView
-from django.views.generic.edit import CreateView
+from django.views.generic.edit import CreateView, UpdateView, DeleteView
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin, PermissionRequiredMixin
 from .models import Review
 
-class ReviewView(CreateView):
-
+class ReviewView(LoginRequiredMixin, CreateView):
+    # Anonymous -> redirect to LOGIN_URL with ?next=/ (back here after login)
     model = Review
     form_class = ReviewForm
     template_name = "reviews/review.html"
     success_url = "/thank-you"
+
+    def form_valid(self, form):
+        form.instance.owner = self.request.user  # The logged-in user owns the new review
+        return super().form_valid(form)
 
 
 class ThankYouView(TemplateView):
@@ -104,4 +109,25 @@ class ClearSessionView(View):
     def get(self, request):
         request.session.flush()  # logout() does the same
         return HttpResponseRedirect("/reviews")
+
+
+class ReviewUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+    # Only the review's owner may edit it: anonymous -> login page, logged in but not the owner -> 403
+    model = Review
+    form_class = ReviewForm
+    template_name = "reviews/review.html"
+
+    def test_func(self):
+        return self.get_object().owner == self.request.user  # True -> allowed, False -> 403 Forbidden
+
+    def get_success_url(self):
+        return f"/reviews/{self.object.id}"
+
+
+class ReviewDeleteView(LoginRequiredMixin, PermissionRequiredMixin, DeleteView):
+    # Only users with the delete_review permission (a moderator, or a superuser) may delete
+    model = Review
+    permission_required = "reviews.delete_review"  # "<app_label>.<action>_<model>", created by migrate
+    template_name = "reviews/review_confirm_delete.html"
+    success_url = "/reviews"
 

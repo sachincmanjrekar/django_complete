@@ -12,7 +12,7 @@
 {% endif %}
 <ul>
     {% for review in reviews %}
-    <li>{{ review.user_name  }} (Rating: {{ review.rating }}) </li>
+    <li><a href="/reviews/{{ review.id }}">{{ review.user_name }}</a> (Rating: {{ review.rating }}) </li>
     {% endfor %}
 </ul>
 {% endblock %}
