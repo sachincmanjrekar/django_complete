@@ -47,6 +47,7 @@ class Book(models.Model):
     is_bestselling = models.BooleanField(default=False)
     slug = models.SlugField(default="", blank=True,  null=False, db_index=True) #Harry Potter 1=>harry-potter-1
     published_countries = models.ManyToManyField(Country,null=False)
+    views = models.PositiveIntegerField(default=0)  # How often the detail page was opened (F() example)
 
     def get_absoulte_url(self):
         return reverse("book-detail", args=[self.slug])
