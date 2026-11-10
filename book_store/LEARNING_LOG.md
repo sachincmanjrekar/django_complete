@@ -1116,7 +1116,120 @@
 
 ## Section 8 complete (Relationships: one-to-many, one-to-one, many-to-many)
 
+## Section 22 begins (ORM performance: N+1, select_related, prefetch_related)
+
+## The N+1 query problem
+
+    - QuerySets are LAZY: Book.objects.all() runs no SQL until it is used
+      (looped over, len(), list(), printed). Related objects are loaded
+      lazily too: book.author runs a NEW query the first time it is read.
+    - N+1 = 1 query for the list + 1 more query PER ROW for related data:
+        books = Book.objects.all()        # 1 query
+        for book in books:
+            book.author.first_name        # +1 query for EACH book
+      3 books -> 4 queries; 1000 books -> 1001. Each query is fast, but the
+      round trips add up. The most-asked Django performance question.
+    - It hides in templates: {{ book.author }} inside {% for %} is the same
+      loop.
+    - select_related("author")           -> ForeignKey / OneToOne (the "one"
+        side): a SQL JOIN, the related row comes in the SAME query.
+        Follow chains with __: select_related("author__address").
+    - prefetch_related("published_countries") -> ManyToMany and reverse
+        ForeignKey (author.books): ONE extra query for ALL rows
+        (WHERE book_id IN (...)), Python joins them up.
+        Can't JOIN many rows into one row, hence the separate query.
+    - Rule: one object on the other side -> select_related; many -> prefetch_related.
+    - Other tools:
+        .only("title", "rating") / .defer("description") -> fewer columns
+        .values("title") / .values_list("title", flat=True) -> dicts / tuples, no model objects
+        .count() / .exists() -> let the database count, don't load rows
+        print(queryset.query) -> the SQL; connection.queries (DEBUG) -> queries run
+        django-debug-toolbar -> query count + SQL per page in the browser
+
+## Seeing the queries: SQL in the terminal
+
+    - book_store/settings.py, at the end:
+        # Print every SQL query in the runserver terminal (works only with DEBUG = True)
+        LOGGING = {
+            "version": 1,
+            "handlers": {"console": {"class": "logging.StreamHandler"}},
+            "loggers": {"django.db.backends": {"handlers": ["console"], "level": "DEBUG"}},
+        }
+      Each request prints its SQL (and time) in the terminal.
+
+## Book list: author, city and countries without N+1
+
+    - book_outlet/views.py, index():
+        if request.GET.get("slow"):
+            # /?slow=1 -> the N+1 version: 1 query for the books, then more queries for EACH book in the template
+            books = Book.objects.all().order_by("title")
+        else:
+            books = (
+                Book.objects
+                .select_related("author__address")         # ForeignKey / OneToOne: JOIN, same query
+                .prefetch_related("published_countries")   # ManyToMany: 1 extra query for ALL books
+                .order_by("title")
+            )
+    - index.html, each book now also shows its author, the author's city
+      and its countries (3 relations: FK, FK -> OneToOne, ManyToMany):
+        by {{ book.author|default:"unknown" }}, {{ book.author.address.city|default:"no city" }}
+        · countries: {% for country in book.published_countries.all %}{{ country.code }} {% empty %}none{% endfor %}
+    - Checked (test client, CaptureQueriesContext):
+        /?slow=1 -> 11 queries:
+          COUNT, AVG, the books,
+          then per book: author, address, countries
+          (3 books x 3, minus 1: Sachin M has no address)
+        /        -> 4 queries:
+          COUNT, AVG,
+          books + authors + addresses in ONE query:
+            ... FROM book_outlet_book
+            LEFT OUTER JOIN book_outlet_author ON (book_outlet_book.author_id = book_outlet_author.id)
+            LEFT OUTER JOIN book_outlet_address ON (book_outlet_author.address_id = book_outlet_address.id)
+          countries for all books in ONE query (_prefetch_related_val_book_id ... IN (...))
+        Page: Destroy the lies by Smita S, Delhi · countries: none
+              Harry potter 1 by JK Rowling, London · countries: none
+              My Struggle by Sachin M, no city · countries: DE
+      With 1000 books: slow = 3002+ queries, optimized = still 4.
+    - LEFT OUTER JOIN (not INNER) because author is null=True: books
+      without an author stay in the list.
+
+## author__address = field names, not tables
+
+    - "author__address" follows FIELDS from Book:
+        Book.author (ForeignKey -> Author)  __  Author.address (OneToOne -> Address)
+      __ = "then go into that model". It ends up joining book_outlet_author
+      and book_outlet_address, but the path names the relation fields
+      (a field writer = ForeignKey(Author) -> "writer__address").
+    - "author__address" loads the author too; no need for
+      select_related("author", "author__address").
+    - The same __ path everywhere in the ORM:
+        Book.objects.filter(author__address__city="London")   # books by authors living in London
+        Book.objects.filter(published_countries__code="DE")   # books published in Germany
+        Book.objects.order_by("author__last_name")
+
+## select_related vs prefetch_related: which one
+
+    - Ask: following the field from this object, how many objects are on
+      the other side?
+        ForeignKey forward (book.author), many-to-one -> ONE  -> select_related
+        OneToOne (author.address)                     -> ONE  -> select_related
+        ManyToMany (book.published_countries)         -> MANY -> prefetch_related
+        reverse ForeignKey (author.books), one-to-many -> MANY -> prefetch_related
+    - The same ForeignKey, two directions:
+        Book.objects.select_related("author")       # each book -> its 1 author   (JOIN)
+        Author.objects.prefetch_related("books")    # each author -> many books   (2nd query; related_name="books")
+    - A single object -> select_related (JOIN, same query); a list (.all()
+      in templates) -> prefetch_related (1 extra query). A JOIN can't fit
+      "many" into one row without duplicating rows.
+
+## Section 22 complete (ORM performance)
+
 ## Helpful resources
+
+    - N+1 queries, select_related vs prefetch_related (YouTube):
+        https://www.youtube.com/watch?v=a3dTy8RO5Ho
+    - QuerySet API: select_related / prefetch_related docs:
+        https://docs.djangoproject.com/en/6.0/ref/models/querysets/#select-related
 
     - Course code snapshot repository (branch per lesson):
         https://github.com/academind/django-practical-guide-course-code

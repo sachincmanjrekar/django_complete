@@ -7,7 +7,16 @@ from .models import Book
 # Create your views here.
 
 def index(request):
-    books = Book.objects.all().order_by("title")
+    if request.GET.get("slow"):
+        # /?slow=1 -> the N+1 version: 1 query for the books, then more queries for EACH book in the template
+        books = Book.objects.all().order_by("title")
+    else:
+        books = (
+            Book.objects
+            .select_related("author__address")         # ForeignKey / OneToOne: JOIN, same query
+            .prefetch_related("published_countries")   # ManyToMany: 1 extra query for ALL books
+            .order_by("title")
+        )
     num_books = books.count()
     avg_rating = books.aggregate(Avg("rating"))  # {"rating__avg": 3.0}
 

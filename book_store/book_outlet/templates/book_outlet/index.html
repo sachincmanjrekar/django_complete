@@ -12,6 +12,8 @@ All Books
     {% for book in books %}
     <li>
         <a href="{{ book.get_absoulte_url }}">{{ book.title }}</a> (Rating: {{ book.rating }})
+        by {{ book.author|default:"unknown" }}, {{ book.author.address.city|default:"no city" }}
+        · countries: {% for country in book.published_countries.all %}{{ country.code }} {% empty %}none{% endfor %}
     </li>
     {% endfor %}
 </ul>
