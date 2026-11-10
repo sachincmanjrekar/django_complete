@@ -6,8 +6,12 @@ from . import views
 urlpatterns = [
     path("", views.ReviewView.as_view()),
     path("thank-you", views.ThankYouView.as_view()),
-    path("reviews", views.ReviewListView.as_view()),
+    path("reviews", views.ReviewListView.as_view(), name="review-list"),
     path("reviews/favorite", views.AddfavoriteView.as_view()),
+    path("reviews/forget-cookies", views.ForgetCookiesView.as_view()),
+    path("reviews/clear-session", views.ClearSessionView.as_view()),
     path("reviews/<int:pk>", views.SingleReviewView.as_view()),
+    path("reviews/<int:pk>/edit", views.ReviewUpdateView.as_view()),
+    path("reviews/<int:pk>/delete", views.ReviewDeleteView.as_view()),
 ]
 

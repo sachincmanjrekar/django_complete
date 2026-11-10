@@ -5,6 +5,13 @@
 <h1>{{ review.user_name }}</h1>
 <p>Rating: {{ review.rating }}</p>
 <p>{{ review.review_text }}</p>
+<p>Written by: {{ review.owner.username|default:"(before login existed)" }}</p>
+{% if review.owner == user %}
+<a href="/reviews/{{ review.id }}/edit">Edit</a>  {# Only the owner sees it (the view checks again: hiding a link is not security) #}
+{% endif %}
+{% if perms.reviews.delete_review %}
+<a href="/reviews/{{ review.id }}/delete">Delete</a>  {# perms = the logged-in user's permissions, in every template #}
+{% endif %}
 {% if is_favorite %}
 <p>This review is marked</p>
 {% else %}

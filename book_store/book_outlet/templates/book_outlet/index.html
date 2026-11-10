@@ -6,12 +6,17 @@ All Books
 
 {% block content %}
 <p>Total number of books: {{ total_number_of_books }}</p>
-<p>Average rating: {{ average_rating|floatformat:1 }}</p>
+<p>Average rating: {{ average_rating|floatformat:1 }} · best {{ stats.best }} · worst {{ stats.worst }} · total views {{ stats.total_views }}</p>
+<p>Top picks (rating 5 OR bestseller): {% for b in top_picks %}{{ b.title }}{% if not forloop.last %}, {% endif %}{% endfor %}
+   · rating 5 AND bestseller: {% for b in both %}{{ b.title }}{% empty %}none{% endfor %}</p>
+<p>Authors: {% for a in authors %}{{ a }} ({{ a.num_books }} book{{ a.num_books|pluralize }}, avg {{ a.avg_rating|floatformat:1|default:"-" }}){% if not forloop.last %} · {% endif %}{% endfor %}</p>
 <hr>
 <ul>
     {% for book in books %}
     <li>
         <a href="{{ book.get_absoulte_url }}">{{ book.title }}</a> (Rating: {{ book.rating }})
+        by {{ book.author|default:"unknown" }}, {{ book.author.address.city|default:"no city" }}
+        · countries: {% for country in book.published_countries.all %}{{ country.code }} {% empty %}none{% endfor %}
     </li>
     {% endfor %}
 </ul>

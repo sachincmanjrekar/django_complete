@@ -18,8 +18,7 @@ from .models import Review
 class ReviewForm(forms.ModelForm):
     class Meta:
         model = Review
-        fields = '__all__'
-        # exclude = []
+        exclude = ['owner']  # Set by the view from request.user, never chosen in the form ('__all__' would show it)
         labels = {"user_name": "Your Name",
                   "review_text" : "Your Feedback",
                   "rating": "Your Rating"}

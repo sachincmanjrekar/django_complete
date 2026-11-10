@@ -38,7 +38,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'reviews',
-    'profiles'
+    'profiles',
+    'accounts',
 ]
 
 MIDDLEWARE = [
@@ -49,6 +50,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'reviews.middleware.TimingMiddleware',  # Ours: X-Response-Time header + a log line for every request
+    'reviews.middleware.MaintenanceModeMiddleware',  # Ours: 503 for everything (except /admin) when MAINTENANCE_MODE = True
 ]
 
 ROOT_URLCONF = 'feedback.urls'
@@ -130,3 +133,9 @@ MAILERS = {
 
 MEDIA_ROOT = BASE_DIR / "uploads"
 MEDIA_URL = "/user-media/"
+
+MAINTENANCE_MODE = False  # True -> every page except /admin answers 503 (MaintenanceModeMiddleware)
+
+LOGIN_URL = "login"              # Where login_required / LoginRequiredMixin send anonymous users (Section 21)
+LOGIN_REDIRECT_URL = "review-list"   # After login (when there is no ?next=)
+LOGOUT_REDIRECT_URL = "review-list"  # After logout

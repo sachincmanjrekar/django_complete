@@ -1,0 +1,12 @@
+{% extends "reviews/base.html" %}
+
+{% block title %}Delete review{% endblock %}
+
+{% block content %}
+<h1>Delete the review by {{ review.user_name }}?</h1>
+<form method="POST">
+    {% csrf_token %}
+    <button>Yes, delete</button>  {# DeleteView deletes on POST only; GET shows this page #}
+</form>
+<a href="/reviews/{{ review.id }}">Cancel</a>
+{% endblock %}

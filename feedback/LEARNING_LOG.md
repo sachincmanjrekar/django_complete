@@ -1185,6 +1185,597 @@
 
 ## Section 13 complete (Sessions)
 
+## Section 17 begins (Cookies)
+
+## What a cookie is
+
+    - A cookie = a small name=value string the SERVER asks the BROWSER to
+      store; the browser sends it back automatically on every request to
+      that site.
+        response:       Set-Cookie: last_viewed_review=3; Max-Age=604800; HttpOnly; SameSite=Lax
+        every request:  Cookie: last_viewed_review=3; csrftoken=...; sessionid=...
+    - HTTP is stateless (a request knows nothing about earlier ones);
+      cookies are how a site remembers a browser. Sessions, CSRF and login
+      are all built on cookies.
+    - In Django:
+        set (on the response)    response.set_cookie("name", value, max_age=...)
+        read (from the request)  request.COOKIES.get("name")   -> always a string, or None
+        delete                   response.delete_cookie("name")
+        set, tamper-proof        response.set_signed_cookie("name", value)
+        read, tamper-proof       request.get_signed_cookie("name", default=None)
+    - set_cookie options:
+        max_age=3600 / expires=datetime -> lifetime; neither = a "session
+                       cookie", deleted when the browser closes
+        httponly=True  -> JavaScript (document.cookie) can't read it -> XSS
+                          can't steal it (Django's sessionid is HttpOnly)
+        secure=True    -> only sent over HTTPS
+        samesite="Lax" / "Strict" / "None" -> sent or not on requests coming
+                          from OTHER sites -> CSRF defense (Lax = default)
+        path / domain  -> which URLs it is sent to
+    - Limits / risks: about 4 KB per cookie; the user can see AND change
+      every cookie (DevTools), so never trust a plain cookie for anything
+      important. set_signed_cookie adds a signature made with SECRET_KEY:
+      an edited value is detected; the value is still readable, just not
+      changeable.
+    - Cookie vs session:
+                       cookie                        session
+        data stored    in the browser                on the server (django_session table)
+        browser holds  the data itself               only a sessionid cookie (random key)
+        user can       read + change (unless signed) neither
+        size           ~4 KB                         no practical limit
+        use for        preferences, last viewed      login state, carts, sensitive data
+
+## Last viewed review (plain cookie) + visit counter (signed cookie)
+
+    - reviews/views.py, SingleReviewView sets both cookies on its response:
+        def get(self, request, *args, **kwargs):
+            response = super().get(request, *args, **kwargs)  # The normal DetailView response
+            response.set_cookie(
+                "last_viewed_review", self.object.id,
+                max_age=60 * 60 * 24 * 7,  # 1 week
+                httponly=True,             # JavaScript can't read it
+                samesite="Lax",            # Not sent on requests coming from other sites
+            )
+            visits = request.get_signed_cookie("review_visits", default=0)  # Tampered or missing -> 0
+            response.set_signed_cookie("review_visits", int(visits) + 1)    # No max_age: gone when the browser closes
+            return response
+      A cookie is set on the RESPONSE, so get() lets the DetailView build
+      its response first, then adds the cookies to it.
+    - ReviewListView reads them from the request:
+        def get_context_data(self, **kwargs):
+            context = super().get_context_data(**kwargs)
+            context["last_viewed_id"] = self.request.COOKIES.get("last_viewed_review")  # A string, or None
+            context["visits"] = self.request.get_signed_cookie("review_visits", default=0)  # Tampered or missing -> 0
+            return context
+    - reviews/templates/reviews/review_list.html, above the <ul>:
+        {% if last_viewed_id %}
+        <p>Last viewed: <a href="/reviews/{{ last_viewed_id }}">review {{ last_viewed_id }}</a> · reviews opened: {{ visits }}</p>
+        {% endif %}
+    - Checked (test client), open reviews 1, 2, 3, then /reviews:
+        before:      no "Last viewed" line (no cookie yet)
+        Set-Cookie:  last_viewed_review=3; expires=...; HttpOnly; Max-Age=604800; Path=/; SameSite=Lax
+        signed:      review_visits = 3:1xQWjm:5PYRqECvx67t5ey...   (value:timestamp:signature)
+        /reviews:    Last viewed: review 3 · reviews opened: 3
+        review_visits changed to 99:<same signature>
+                  -> reviews opened: 0 (signature doesn't match -> default)
+
+## 1 minute cookie + deleting cookies
+
+    - To watch it expire, last_viewed_review now lives 1 minute:
+        max_age=60,                # 1 minute (for testing; was 60 * 60 * 24 * 7 = 1 week)
+      Set-Cookie: last_viewed_review=2; expires=...21:23:46 GMT; HttpOnly; Max-Age=60; Path=/; SameSite=Lax
+      After a minute the browser drops it; /reviews no longer shows "Last viewed".
+    - reviews/views.py:
+        class ForgetCookiesView(View):
+            # Deletes both cookies, then back to the list
+            def get(self, request):
+                response = HttpResponseRedirect("/reviews")
+                response.delete_cookie("last_viewed_review")  # Sends the cookie again with Max-Age=0 -> the browser removes it
+                response.delete_cookie("review_visits")
+                return response
+      reviews/urls.py:
+        path("reviews/forget-cookies", views.ForgetCookiesView.as_view()),
+      review_list.html, at the end of the "Last viewed" line:
+        · <a href="/reviews/forget-cookies">forget cookies</a>
+    - The server can't remove a cookie from the browser directly:
+      delete_cookie() overwrites it with an already expired one:
+        Set-Cookie: last_viewed_review=""; expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Path=/
+      Checked: /reviews/forget-cookies -> 302 /reviews, no "Last viewed" line.
+    - review_visits has no max_age: it stays until the browser closes (or
+      forget cookies).
+
+## Section 17 complete (Cookies)
+
+## Section 18 begins (Sessions, deeper)
+
+    - Builds on Section 13 (favorite_review, 2 week default, JSON only).
+
+## How a session works inside
+
+    - 1st request: SessionMiddleware finds no sessionid cookie -> an empty
+      session. When the view writes to request.session, the middleware
+      (on the response) saves a row in django_session and sends:
+        Set-Cookie: sessionid=s19epkuumptfw0d87r6m9pzf0275nbbm; expires=...; HttpOnly; Max-Age=...
+      Next requests: the browser sends sessionid -> the middleware loads
+      that row -> request.session is filled again.
+    - django_session row:
+        session_key   = the cookie value (32 random characters)
+        session_data  = eyJyZWNlbnRfcmV2aWV3cyI6WzQsMSwzXSwiX3Nl...  (JSON, base64 + signed)
+        expire_date   = when the session stops being valid
+      row.get_decoded() -> {'recent_reviews': [4, 1, 3], '_session_expiry': 120}
+      The browser only ever has the key; the data never leaves the server.
+    - Saved only when MODIFIED. Assigning a key marks it modified; changing
+      a list / dict IN PLACE does not:
+        session['items'] = [1]          -> modified = True   (saved)
+        session['items'].append(2)      -> modified = False  (NOT saved)
+      Fix: assign again (session['items'] = items) or
+      request.session.modified = True.
+      (SESSION_SAVE_EVERY_REQUEST = True saves on every request.)
+    - Expiry:
+        request.session.set_expiry(120)      -> 120 s after the LAST request (inactivity)
+        set_expiry(0)                        -> when the browser closes
+        set_expiry(datetime)                 -> at that time
+        set_expiry(None)                     -> back to SESSION_COOKIE_AGE (2 weeks)
+        get_expiry_date() / get_expiry_age() -> read it
+        SESSION_EXPIRE_AT_BROWSER_CLOSE = True -> for all sessions
+    - Ending a session:
+        del request.session['key'] -> removes one value
+        request.session.clear()    -> removes all values, same key
+        request.session.flush()    -> deletes the row + new key (logout() does this)
+        request.session.cycle_key()-> same data, new key; login() does this
+                                      against session fixation (an attacker
+                                      can't plant a known key before you log in)
+    - Expired rows stay in the table: python manage.py clearsessions
+      deletes them (run it regularly, e.g. a cron job).
+    - SESSION_ENGINE (where the data lives):
+        backends.db            -> django_session table (default)
+        backends.cache         -> cache (fast, lost on restart)
+        backends.cached_db     -> cache + DB (fast and kept)
+        backends.file          -> files on disk
+        backends.signed_cookies-> the data IS the cookie (signed, readable,
+                                  4 KB limit; no server storage)
+    - login() stores the user in the session: _auth_user_id,
+      _auth_user_backend, _auth_user_hash. That's how request.user
+      survives between requests (Section 20).
+
+## Recently viewed reviews (a list in the session) + clear session
+
+    - reviews/views.py, SingleReviewView.get():
+        recent = request.session.get("recent_reviews", [])  # A list of ids, [] the first time
+        if self.object.id in recent:
+            recent.remove(self.object.id)
+        recent.insert(0, self.object.id)                     # Newest first
+        request.session["recent_reviews"] = recent[:3]       # Assigning the key -> Django saves the session
+        request.session.set_expiry(120)                      # This session ends 2 minutes after the LAST request (testing)
+      The list is changed in place, so assigning it back is what marks
+      the session modified.
+    - ReviewListView.get_context_data():
+        session = self.request.session
+        recent_ids = session.get("recent_reviews", [])
+        reviews_by_id = Review.objects.in_bulk(recent_ids)       # {id: Review}, one query
+        context["recent_reviews"] = [reviews_by_id[i] for i in recent_ids if i in reviews_by_id]  # Keep the newest-first order
+        context["session_key"] = session.session_key          # The value of the sessionid cookie (None if no session yet)
+        context["session_expires"] = session.get_expiry_date()
+      Only ids in the session (JSON), the Review objects are loaded again.
+      filter(id__in=...) would lose the newest-first order, in_bulk + the
+      list keeps it.
+    - ClearSessionView:
+        class ClearSessionView(View):
+            # Ends the session: data deleted from the DB, new session key
+            def get(self, request):
+                request.session.flush()  # logout() does the same
+                return HttpResponseRedirect("/reviews")
+      reviews/urls.py:
+        path("reviews/clear-session", views.ClearSessionView.as_view()),
+    - review_list.html, above the <ul>:
+        {% if recent_reviews %}
+        <p>Recently viewed (session): {% for r in recent_reviews %}<a href="/reviews/{{ r.id }}">{{ r.user_name }}</a> {% endfor %}</p>
+        <p>Session key: {{ session_key }} · expires: {{ session_expires|date:"H:i:s" }} UTC · <a href="/reviews/clear-session">clear session</a></p>
+        {% endif %}
+    - Checked (test client, rolled back), open reviews 1, 2, 3, 1, 4:
+        /reviews  -> Recently viewed (session): max Sachin hamilton   (4, 1, 3)
+                     Session key: s19epkuumptf... · expires: 21:34:42 UTC
+        DB row    -> get_decoded() = {'recent_reviews': [4, 1, 3], '_session_expiry': 120}
+        cookie    -> sessionid=s19epkuumptf...; expires=...; HttpOnly; Max-Age=120
+        /reviews/clear-session -> 302, the row is gone, no "Recently viewed" line
+
+## get() vs get_context_data()
+
+    - get() = Django calls it for every GET request (typing the URL, a
+      link, refresh). It handles the WHOLE request and returns a RESPONSE.
+      get_context_data() = called BY get(), partway through; builds the
+      DICT of template variables.
+    - DetailView.get() inside (simplified Django source):
+        def get(self, request, *args, **kwargs):
+            self.object = self.get_object()                       # 1. load the Review by pk (404 if missing)
+            context = self.get_context_data(object=self.object)   # 2. our get_context_data runs here
+            return self.render_to_response(context)               # 3. template + context -> response
+    - GET /reviews/3:
+        our get()
+          -> super().get()
+              -> get_object()          (Review 3)
+              -> get_context_data()    (adds is_favorite)
+              -> render_to_response()  (HTML response)
+          <- back in our get(): cookies + session on that response
+    - Why the code is split this way:
+        is_favorite in get_context_data() -> only a template variable
+        set_cookie in get()               -> needs the response object, which
+                                             doesn't exist yet in get_context_data()
+        the session list in get()         -> request.session is on the request,
+                                             so either works; get() keeps the
+                                             "on each visit" side effects together
+    - Rule of thumb:
+        add data to the template              -> get_context_data()
+        change the request handling / response
+        (cookies, headers, redirects, side effects) -> get()
+        forms (POST)                          -> post()
+
+## Section 18 complete (Sessions)
+
+## Section 19 begins (Middleware)
+
+## What middleware is
+
+    - Middleware = code that runs around EVERY request: before it reaches
+      the view, and on the response on the way back. A chain of layers
+      around the views, listed in settings.MIDDLEWARE.
+        Request  -> Security -> Session -> Common -> Csrf -> Auth -> Messages -> XFrame -> view
+        Response <- Security <- Session <- Common <- Csrf <- Auth <- Messages <- XFrame <- view
+      Request: top to bottom. Response: bottom to top (like an onion).
+    - The defaults, all used already:
+        SecurityMiddleware          -> HTTPS redirect, security headers
+        SessionMiddleware           -> loads / saves request.session (sessionid cookie, Section 18)
+        CommonMiddleware            -> APPEND_SLASH (the PUT-without-slash RuntimeError in peoplehub)
+        CsrfViewMiddleware          -> 403 for a POST without a valid CSRF token (Section 10)
+        AuthenticationMiddleware    -> sets request.user (from the session)
+        MessageMiddleware           -> django.contrib.messages (flash messages)
+        XFrameOptionsMiddleware     -> X-Frame-Options: DENY (no embedding in an iframe -> clickjacking)
+    - Order matters: AuthenticationMiddleware reads the user FROM the
+      session, so it must come after SessionMiddleware.
+    - Shape of a middleware (a class):
+        __init__(self, get_response) -> ONCE at server start; get_response = the next layer
+        __call__(self, request)      -> EVERY request:
+                                          code before  = request on its way in
+                                          response = self.get_response(request)
+                                          code after   = response on its way out
+                                          return response
+      Returning a response WITHOUT calling get_response = short-circuit:
+      the layers below and the view never run.
+    - Optional hooks:
+        process_view(request, view_func, view_args, view_kwargs) -> just before the view, knows which view
+        process_exception(request, exception)                    -> the view raised an error
+        process_template_response(request, response)             -> TemplateResponse before rendering
+    - DRF authentication (TokenAuthentication) is NOT middleware: it runs
+      inside the DRF view, so request.user in a DRF view can be the token
+      user even when AuthenticationMiddleware found nobody (peoplehub).
+    - Use cases: logging / timing, blocking IPs, maintenance mode, adding
+      headers, CORS (django-cors-headers is a middleware), language
+      selection (LocaleMiddleware).
+
+## TimingMiddleware + MaintenanceModeMiddleware
+
+    - reviews/middleware.py (new):
+        import time
+
+        from django.conf import settings
+        from django.http import HttpResponse
+
+
+        class TimingMiddleware:
+            # Runs around EVERY request: measures how long the rest of the chain (other middleware + view) takes
+
+            def __init__(self, get_response):
+                # Called ONCE, when the server starts. get_response = the next layer (eventually the view)
+                self.get_response = get_response
+
+            def __call__(self, request):
+                # Called for EVERY request
+                start = time.perf_counter()                       # Before the view: the request on its way in
+
+                response = self.get_response(request)             # Hand over to the next layer -> ... -> view
+
+                duration_ms = (time.perf_counter() - start) * 1000  # After the view: the response on its way out
+                response["X-Response-Time"] = f"{duration_ms:.1f}ms"  # Add a header to every response
+                print(f"[timing] {request.method} {request.path} -> {response.status_code} in {duration_ms:.1f}ms")
+                return response
+
+
+        class MaintenanceModeMiddleware:
+            # Short-circuit: when MAINTENANCE_MODE is on, answer 503 WITHOUT calling the view (admin stays reachable)
+
+            def __init__(self, get_response):
+                self.get_response = get_response
+
+            def __call__(self, request):
+                if getattr(settings, "MAINTENANCE_MODE", False) and not request.path.startswith("/admin"):
+                    return HttpResponse("Site under maintenance, back soon.", status=503)  # Never calls get_response -> view never runs
+
+                return self.get_response(request)
+    - feedback/settings.py, at the end of MIDDLEWARE:
+        'reviews.middleware.TimingMiddleware',  # Ours: X-Response-Time header + a log line for every request
+        'reviews.middleware.MaintenanceModeMiddleware',  # Ours: 503 for everything (except /admin) when MAINTENANCE_MODE = True
+      and at the end of the file:
+        MAINTENANCE_MODE = False  # True -> every page except /admin answers 503 (MaintenanceModeMiddleware)
+    - Checked (test client):
+        GET /reviews  -> 200, X-Response-Time: 51.0ms
+                         terminal: [timing] GET /reviews -> 200 in 51.0ms
+        GET /nope     -> 404, X-Response-Time: 4.7ms   (404s pass through middleware too)
+        MAINTENANCE_MODE = True:
+          GET /reviews -> 503 "Site under maintenance, back soon.", X-Response-Time: 0.0ms
+          GET /admin/  -> 302 (to the admin login, still reachable)
+    - The order shows: TimingMiddleware is ABOVE MaintenanceModeMiddleware,
+      so it still wraps the 503 (0.0ms: the view never ran). With
+      Maintenance above Timing, the 503 would return before Timing and
+      have no X-Response-Time header.
+
+## Middleware self-check answers
+
+    - Why must AuthenticationMiddleware come after SessionMiddleware?
+      It sets request.user from the user id stored IN the session
+      (_auth_user_id); request.session only exists after SessionMiddleware.
+      Wrong order -> no session to read, and Django's system check errors.
+    - What if a middleware returns a response without calling get_response?
+      Short-circuit: the middleware below it and the view never run; the
+      response goes straight back up through the ones above
+      (MaintenanceModeMiddleware's 503, CsrfViewMiddleware's 403).
+    - Response order? The reverse: request top to bottom, response bottom
+      to top. The first in the list sees the request first and the
+      response last (why TimingMiddleware above Maintenance still timed
+      the 503).
+    - Why didn't TokenAuthentication need middleware (peoplehub)?
+      DRF authenticates INSIDE the view: APIView runs
+      authentication_classes and sets request.user from the token header.
+      Django's AuthenticationMiddleware only knows session logins, so it
+      finds AnonymousUser; DRF replaces that inside the view.
+
+## Section 19 complete (Middleware)
+
+## Section 20 begins (Authentication)
+
+## Authentication in Django: how it works
+
+    - Authentication = WHO is this user (log in, log out, sign up).
+      Authorization = what may they do (Section 21).
+    - Pieces (all in a new project already):
+        django.contrib.auth       -> User model (username, password, email,
+                                     is_staff, is_superuser, groups, permissions)
+        SessionMiddleware         -> request.session
+        AuthenticationMiddleware  -> request.user (from the session)
+    - The 3 functions:
+        authenticate(request, username=..., password=...) -> the User if they match, else None
+                                       (checks the HASH, never stores the plain password)
+        login(request, user)  -> stores the user in the session + cycle_key()
+                                 (new session key -> no session fixation)
+        logout(request)       -> session.flush() (data deleted, new key)
+    - After login() the session holds:
+        {'_auth_user_id': '1',
+         '_auth_user_backend': 'django.contrib.auth.backends.ModelBackend',
+         '_auth_user_hash': '9e5748c4...'}
+      Every request: AuthenticationMiddleware reads _auth_user_id ->
+      request.user = that User; no session / no id -> AnonymousUser.
+      _auth_user_hash comes from the password hash: changing the password
+      logs out other sessions.
+    - Passwords are stored hashed: pbkdf2_sha256$1500000$<salt>$<hash>
+      (algorithm, iterations, salt, hash). create_user() / set_password()
+      / UserCreationForm hash; never assign user.password = "..." directly.
+    - In templates: {{ user }}, {{ user.username }}, {% if user.is_authenticated %}
+      (the auth context processor adds 'user' to every template).
+      In views: request.user, request.user.is_authenticated.
+    - Built-in views, include("django.contrib.auth.urls"):
+        login/  logout/  password_change/  password_change/done/
+        password_reset/  password_reset/done/  reset/<uidb64>/<token>/  reset/done/
+      They look for templates in registration/ (registration/login.html, ...).
+    - Logout must be a POST since Django 5 (GET -> 405), so a link can't
+      log anyone out (CSRF-safe).
+
+## Sign up, log in, log out in feedback
+
+    - python manage.py startapp accounts; INSTALLED_APPS: 'accounts',
+    - accounts/views.py:
+        from django.contrib.auth import login
+        from django.contrib.auth.forms import UserCreationForm
+        from django.urls import reverse_lazy
+        from django.views.generic.edit import CreateView
+
+        class SignUpView(CreateView):
+            form_class = UserCreationForm               # Built-in: username + password1 + password2, validated and hashed
+            template_name = "registration/signup.html"
+            success_url = reverse_lazy("review-list")   # reverse_lazy: the URLs aren't loaded yet when the class is defined
+
+            def form_valid(self, form):
+                response = super().form_valid(form)     # Saves the new User (self.object), redirect to success_url
+                login(self.request, self.object)        # Log the new user in right away (puts their id in the session)
+                return response
+    - accounts/urls.py:
+        urlpatterns = [
+            path("signup/", views.SignUpView.as_view(), name="signup"),
+            # Django's built-in auth views: login/, logout/, password_change/, password_reset/, ...
+            path("", include("django.contrib.auth.urls")),
+        ]
+      feedback/urls.py:
+        path("accounts/", include("accounts.urls")),  # signup + Django's login / logout / password views
+      reviews/urls.py, a name for the list (used by the redirects):
+        path("reviews", views.ReviewListView.as_view(), name="review-list"),
+    - feedback/settings.py:
+        LOGIN_URL = "login"              # Where login_required / LoginRequiredMixin send anonymous users (Section 21)
+        LOGIN_REDIRECT_URL = "review-list"   # After login (when there is no ?next=)
+        LOGOUT_REDIRECT_URL = "review-list"  # After logout
+    - accounts/templates/registration/login.html (the name LoginView looks for):
+        {% if form.errors %}
+        <p>Wrong username or password.</p>
+        {% endif %}
+        <form method="POST">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <input type="hidden" name="next" value="{{ next }}">  {# Where to go after login, e.g. ?next=/reviews #}
+            <button>Log in</button>
+        </form>
+      accounts/templates/registration/signup.html: the same form with
+      {{ form.as_p }} and <button>Sign up</button>.
+      Both {% extends "reviews/base.html" %}.
+    - reviews/templates/reviews/base.html, a nav on every page:
+        <nav>
+            {% if user.is_authenticated %}
+            Hello, {{ user.username }} ·
+            <form action="{% url 'logout' %}" method="POST" style="display:inline">
+                {% csrf_token %}
+                <button>Log out</button>  {# Logout must be a POST since Django 5 #}
+            </form>
+            {% else %}
+            <a href="{% url 'login' %}">Log in</a> · <a href="{% url 'signup' %}">Sign up</a>
+            {% endif %}
+        </nav>
+    - Checked (test client, rolled back):
+        anonymous nav                    -> Log in · Sign up
+        signup, passwords differ         -> 200 "The two password fields didn't match."
+        signup, password "123"           -> 200 "This password is too short. It must contain at least
+                                            8 characters." / "too common" / "entirely numeric"
+                                            (AUTH_PASSWORD_VALIDATORS in settings.py)
+        signup liam / Str0ng!pass        -> 302 /reviews, logged in
+        stored password                  -> pbkdf2_sha256$1500000$...
+        session                          -> {'_auth_user_id': '1', '_auth_user_backend': '...ModelBackend',
+                                             '_auth_user_hash': '9e5748c4...'}
+        logged-in nav                    -> Hello, liam · Log out
+        GET /accounts/logout/            -> 405
+        POST /accounts/logout/           -> 302 /reviews, nav back to Log in · Sign up
+        signup liam again                -> 200 "A user with that username already exists."
+        login, wrong password            -> 200 "Wrong username or password."
+        login with next=/reviews/2       -> 302 /reviews/2, new session key (cycle_key)
+        /accounts/password_change/, /accounts/password_reset/ -> work (built in)
+
+## reverse() vs reverse_lazy()
+
+    - reverse("review-list") -> "/reviews": URL NAME -> path, no hard-coded
+      paths.
+    - success_url is a CLASS attribute: it runs when Python loads views.py,
+      before Django has loaded the URL patterns -> reverse() there crashes.
+      reverse_lazy() waits and looks the path up only when it is used
+      (after a successful sign up).
+    - Rule: inside a method (a request is being handled) -> reverse();
+      class attributes, settings -> reverse_lazy().
+
+## Section 20 complete (Authentication)
+
+## Section 21 begins (Authorization)
+
+## Authorization in Django: the tools
+
+    - Authorization = what a known user may DO (authentication = who).
+    - 3 kinds of rule:
+        1. logged in at all?   -> login_required / LoginRequiredMixin
+        2. YOUR object?        -> UserPassesTestMixin (test_func) or filter
+                                  the queryset by owner
+        3. a role / permission -> PermissionRequiredMixin, user.has_perm()
+    - Mixins go LEFT of the view class (they run first, in dispatch()):
+        class ReviewView(LoginRequiredMixin, CreateView)
+      Function views: @login_required, @permission_required("app.perm"),
+      @user_passes_test(func).
+    - What happens on failure:
+        anonymous               -> 302 to LOGIN_URL?next=<this page>
+        logged in, not allowed  -> 403 Forbidden (PermissionDenied)
+      Django never sends 401 for pages (it redirects to the login page).
+      DRF: 401 = no / bad credentials, 403 = known user, not allowed.
+    - Permissions: migrate creates 4 per model:
+        reviews.add_review  reviews.change_review  reviews.delete_review  reviews.view_review
+      ("<app_label>.<action>_<model>"). Given to a user directly or to a
+      GROUP (a role, e.g. Moderators); a user gets all their groups' perms.
+        user.has_perm("reviews.delete_review")
+        is_superuser -> has every permission; is_staff -> may log in to /admin
+      Templates: {% if perms.reviews.delete_review %} (perms in every template).
+    - Hiding a link is NOT security: the view must check again (a user can
+      type the URL).
+    - Ownership: filtering the queryset by owner (todo project) -> someone
+      else's object is 404 (they can't even tell it exists);
+      UserPassesTestMixin -> 403 (it exists, you may not touch it).
+
+## Review owner, owner-only edit, moderator-only delete
+
+    - reviews/models.py:
+        from django.contrib.auth.models import User
+        owner = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)  # Who wrote it; null for the old reviews (made before login existed)
+      python manage.py makemigrations reviews -> 0002_review_owner.py, Add field owner to review
+      python manage.py migrate reviews
+      null=True: the existing reviews have no owner (so nobody can edit them).
+    - reviews/forms.py, ReviewForm:
+        exclude = ['owner']  # Set by the view from request.user, never chosen in the form ('__all__' would show it)
+    - reviews/views.py:
+        from django.views.generic.edit import CreateView, UpdateView, DeleteView
+        from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin, PermissionRequiredMixin
+
+        class ReviewView(LoginRequiredMixin, CreateView):
+            # Anonymous -> redirect to LOGIN_URL with ?next=/ (back here after login)
+            ...
+            def form_valid(self, form):
+                form.instance.owner = self.request.user  # The logged-in user owns the new review
+                return super().form_valid(form)
+
+
+        class ReviewUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+            # Only the review's owner may edit it: anonymous -> login page, logged in but not the owner -> 403
+            model = Review
+            form_class = ReviewForm
+            template_name = "reviews/review.html"
+
+            def test_func(self):
+                return self.get_object().owner == self.request.user  # True -> allowed, False -> 403 Forbidden
+
+            def get_success_url(self):
+                return f"/reviews/{self.object.id}"
+
+
+        class ReviewDeleteView(LoginRequiredMixin, PermissionRequiredMixin, DeleteView):
+            # Only users with the delete_review permission (a moderator, or a superuser) may delete
+            model = Review
+            permission_required = "reviews.delete_review"  # "<app_label>.<action>_<model>", created by migrate
+            template_name = "reviews/review_confirm_delete.html"
+            success_url = "/reviews"
+    - reviews/urls.py:
+        path("reviews/<int:pk>/edit", views.ReviewUpdateView.as_view()),
+        path("reviews/<int:pk>/delete", views.ReviewDeleteView.as_view()),
+    - review.html: <form action="" method="POST"> (was action="/"):
+      "" posts back to the current URL, so the edit page reuses the template.
+    - single_review.html:
+        <p>Written by: {{ review.owner.username|default:"(before login existed)" }}</p>
+        {% if review.owner == user %}
+        <a href="/reviews/{{ review.id }}/edit">Edit</a>  {# Only the owner sees it (the view checks again: hiding a link is not security) #}
+        {% endif %}
+        {% if perms.reviews.delete_review %}
+        <a href="/reviews/{{ review.id }}/delete">Delete</a>  {# perms = the logged-in user's permissions, in every template #}
+        {% endif %}
+    - review_confirm_delete.html (new): "Delete the review by ...?", a POST
+      form with <button>Yes, delete</button> and a Cancel link. DeleteView:
+      GET shows this page, only POST deletes.
+    - Checked (test client, rolled back): liam (owner), bob (another
+      user), mia (in a "Moderators" group with reviews.delete_review):
+        anonymous GET /              -> 302 /accounts/login/?next=/
+        liam POST / with owner=bob   -> 302 /thank-you, owner saved = liam (owner field ignored)
+        links on the review: liam ['Edit'], bob [], mia ['Delete']
+        anonymous /reviews/12/edit   -> 302 (login page)
+        bob GET / POST edit          -> 403 / 403
+        liam POST edit               -> 302 /reviews/12, text changed to "even better"
+        liam /reviews/12/delete      -> 403 (owner, but no delete permission)
+        mia GET delete               -> 200 (confirm page)
+        mia POST delete              -> 302 /reviews, review deleted
+        has_perm("reviews.delete_review"): mia True, bob False
+
+## Adding a review as a new user + clickable review list
+
+    - Steps: sign up at /accounts/signup/ (logged in right away) -> open /
+      -> fill the form -> Submit -> /thank-you -> the review shows
+      "Written by: <username>" and an Edit link (owner).
+      Logged out, / redirects to /accounts/login/?next=/ and comes back
+      to the form after login.
+    - "Your Name" (user_name) is just text; the owner is always the
+      logged-in user (set in form_valid).
+    - The existing reviews (ids 1-8, 10) were typed into the form at /
+      in Sections 10-11, before login existed -> owner = None. Id 9 was
+      deleted; database ids are never reused.
+    - review_list.html, each name links to its review:
+        <li><a href="/reviews/{{ review.id }}">{{ review.user_name }}</a> (Rating: {{ review.rating }}) </li>
+      (was plain text, so a review could only be opened by typing /reviews/<id>)
+
+## Section 21 complete (Authorization)
+
 ## Helpful resources
 
     - Course code snapshot repository (branch per lesson):
